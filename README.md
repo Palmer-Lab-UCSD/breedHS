@@ -9,10 +9,12 @@ used by the [HS West](https://ratgenes.org/) colony, managed by
 <br>
 The core breedail algorithm is unchanged here, but this repository provides two main 
 additions to the original breedail repo:
-1. Utility functions to make breeder selection more user-friendly, without the need
+<br>
+    1. Utility functions to make breeder selection more user-friendly, without the need
 for substantial code and manual re-runs (such as in the [original example](code/orig_breedail_example.R) 
 code provided with breedail).
-2. A novel algorithm for selecting breeders to exchange between two separate populations.
+<br>
+    2. A novel algorithm for selecting breeders to exchange between two separate populations.
 <br>
 
 * [kinship.R](code/kinship.R) defines functions to calculate and
