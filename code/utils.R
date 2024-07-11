@@ -33,8 +33,8 @@ format.pedigree <- function(first_gen,  # the desired starting generation
     
     ## Format desired data columns
     ped.ids <- ped.tmp[,1]
-    ped.cols <- c('dam', 'sire', 'sex')
-    ped.tmp <- cbind(ped.ids,ped.tmp[ped.cols])
+    ped.cols <- c('sire', 'dam', 'sex')
+    ped.tmp <- cbind(ped.ids, ped.tmp[ped.cols])
     colnames(ped.tmp) <- c('id', ped.cols)
 
     # Remove parental data from the first generation
