@@ -5,7 +5,8 @@ outbred line so that inbreeding in the offspring is
 minimized. This repository is forked from [breedail](https://github.com/pcarbo/breedail),
 which was originally developed for advanced intercross lines in mice, and is currently
 used by the [HS West](https://ratgenes.org/) colony, managed by 
-[Dr. Abraham Palmer's lab](https://palmerlab.org/) at UC San Diego, for breeding HS rats.
+[Dr. Abraham Palmer's lab](https://palmerlab.org/) at UC San Diego, for breeding 
+Heterogeneous Stock rats.
 
 The core breedail algorithm is unchanged here, but this repository provides two main 
 additions to the original breedail repo:
