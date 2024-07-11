@@ -69,8 +69,8 @@ get.ped.comb <- function(prev_pedigree, breed_results){
                          breed_results[,1:2], rep(1,dim(breed_results)[1]))
   prev_pedigree <- as.data.frame(prev_pedigree, )
   next_pedigree <- as.data.frame(next_pedigree, )
-  names(next_pedigree)[1:4] <- c("ID","Mother","Father","Sex")
-  names(prev_pedigree) <- c("ID","Mother","Father","Sex")
+  names(next_pedigree)[1:4] <- c("ID","Father","Mother","Sex")
+  names(prev_pedigree) <- c("ID","Father","Mother","Sex")
   ped.comb <- rbind(prev_pedigree, next_pedigree)
   out <- list(ped.comb=ped.comb, ped.prev=prev_pedigree, ped.next=next_pedigree)
   return(out)
@@ -107,7 +107,7 @@ select.breeders <- function(first_gen,              # first generation of the pe
     
     sibs <- 'one_per_sibship'
     first.breeders <- find.mates.res(ped.prev,k.prev)
-    colnames(first.breeders) <- c('dam', 'sire', 'kinship')
+    colnames(first.breeders) <- c('sire', 'dam', 'kinship')
   } else {
     
     sibs <- 'multi_per_sibship'
@@ -246,7 +246,7 @@ format.ped.cols <- function(df){
   
   ## Format desired data columns
   ped.ids <- df[,1]
-  ped.cols <- c('dam', 'sire', 'sex')
+  ped.cols <- c('sire', 'dam', 'sex')
   ped <- cbind(ped.ids, df[ped.cols])
   colnames(ped) <- c('id', ped.cols)
   return(ped)
@@ -323,8 +323,8 @@ exchange.breeders <- function(
     all.breeders1 <- cbind(round1.idx1, round1.breeders1)
     all.breeders2 <- cbind(round1.idx2, round1.breeders2)
     
-    colnames(all.breeders1) <- c('round', 'dam', 'sire', 'kinship')
-    colnames(all.breeders2) <- c('round', 'dam', 'sire', 'kinship')
+    colnames(all.breeders1) <- c('round', 'sire', 'dam', 'kinship')
+    colnames(all.breeders2) <- c('round', 'sire', 'dam', 'kinship')
     
     # update pedigrees
     first.os1 <- max(ped.prev1[,1])+9999
@@ -332,7 +332,7 @@ exchange.breeders <- function(
                        round1.breeders1[,1:2], rep(1,dim(round1.breeders1)[1]))
     ped.prev1 <- as.data.frame(ped.prev1, )
     ped.next1 <- as.data.frame(ped.next1, )
-    ped.cols <- c('ID', 'Mother', 'Father', 'Sex')
+    ped.cols <- c('ID', 'Father', 'Mother', 'Sex')
     names(ped.next1) <- ped.cols
     names(ped.prev1) <- ped.cols
     ped.comb1 <- rbind(ped.prev1, ped.next1)
