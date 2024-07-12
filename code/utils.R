@@ -13,47 +13,173 @@ encode.sex <- function(ped) {
   return(ped)
 }
 
-# format multiple pedigree files into a single pedigree
-# (assumes that utils.R is in the same directory as kinship.R and find_mates.R)
-format.pedigree <- function(first_gen,  # the desired starting generation
+# identify pedigree errors 
+# (for now, only identifies missing parents)
+find.ped.errors <- function(first_gen,  # the desired starting generation
                             last_gen,   # the desired last generation
                             data_dir,   # the directory housing pedigree files
-                            file_stem){ # the stem name shared by all pedigree files
-  
-  ped <- c() # empty element to hold the eventual pedigree 
-  
-  ## Loop across generations
-  for (i in first_gen:last_gen){
-    file.name <- file.path(data_dir, paste0(file_stem, i, ".csv"))
+                            file_stem,  # the stem name shared by all pedigree files
+                            write_file=TRUE,
+                            return_ids=TRUE)
+{
+
+  # empty element to hold the eventual pedigree 
+  ped <- c() 
     
-    ## Read in the pedigree for a given generation
-    ## Here we assume that missing values are written as question marks.
+  # empty elements to hold vectors of missing parents  
+  missing_parents <- c()
+  missing_gens <- c()
+  missing_parents_files <- c()
+  missing_kin_files <- c()
+
+  first_nchar <- nchar(first_gen)
+  last_nchar <- nchar(last_gen)
+  
+  ## loop across generations
+  for (i in first_gen:last_gen){
+
+    # save the file name for the previous generation
+    if (i > first_gen){
+        prev.file <- file.name
+    }
+
+    # get the file name for the current generation
+    file.name <- file.path(data_dir, paste0(file_stem, i, ".csv"))
+
+    if (!file.exists(file.name)) {
+        gen_nchar <- nchar(i)
+        n_zeros <- last_nchar - gen_nchar
+        i_str <- paste0(rep('0', n_zeros), i)
+        file.name <- file.path(data_dir, paste0(file_stem, i_str, ".csv"))
+    }
+
+    if (!file.exists(file.name)) {
+        print(paste('Cannot find a pedigree file for generation', i, 
+                   'at', file.name))
+    }
+    
+    ## read in the pedigree for a given generation
     ped.tmp = read.table(file=file.name, sep=",", header=T,
                          as.is=TRUE, na.strings="?")
     
-    ## Format desired data columns
+    ## format desired data columns
     ped.ids <- ped.tmp[,1]
     ped.cols <- c('sire', 'dam', 'sex')
     ped.tmp <- cbind(ped.ids, ped.tmp[ped.cols])
     colnames(ped.tmp) <- c('id', ped.cols)
 
-    # Remove parental data from the first generation
+    # remove parental data from the first generation
     if (i == first_gen){
       ped.tmp[,c(2,3)] <- 0}
     
-    ## Check that parents are in the previous generation. This example will
-    ## return five warning messages from generation 3.
+    ## check that parents are in the previous generation
     if (i != first_gen){
-      tmp <- check.ped(ped.tmp , ped.prev)           
+      tmp <- check.ped(ped.tmp , ped.prev)   
       if (length(tmp) > 0){
-        print(paste('Generation', i, ': Parent ID', tmp, 'is not present in generation', i-1))
+        missing_parents <- c(missing_parents, tmp)
+        missing_gens <- c(missing_gens, rep(i,length(tmp)))
+        missing_parents_files <- c(missing_parents_files, rep(prev.file, length(tmp)))
+        missing_kin_files <- c(missing_kin_files, rep(file.name, length(tmp)))
+        print(paste('Generation', paste0(i, ':'), length(tmp), 'parent IDs were not found in generation', i-1))
       }
     }
     ped.prev <- ped.tmp	
     ped <- rbind(ped,ped.tmp)
   }
 
-  ## Change sex coding from alphabetical to numeric, where F:0, M:1
+
+  if (is.null(missing_parents)) {
+      print('No errors found in the pedigree')
+  } else {
+      ## write missing parents to a file for investigation
+      if (write_file) {
+          missing_df <- data.frame(
+          id = missing_parents,
+          birth_gen = missing_gens-1,
+          kin_gen = missing_gens,
+          self_ped = missing_parents_files,
+          kin_ped = missing_kin_files)
+
+          timestamp <- format(Sys.time(),'%Y%m%d-%H:%M:%S')
+          outstr <- paste0(file_stem, 
+                           rep('0',(last_nchar-first_nchar)),
+                           first_gen, '-', last_gen,
+                           '_missing_parents_', timestamp, '.csv')
+          outfile <- file.path(data_dir, outstr)
+          print(paste('See', outfile, 'for details'))
+          write.csv(missing_df, outfile, row.names=F,quote=F)
+      }
+      if (return_ids) {
+          return(missing_parents)        
+      }
+  }
+}
+
+
+# format multiple pedigree files (from one population) into a single pedigree
+# (assumes that utils.R is in the same directory as kinship.R and find_mates.R)
+format.pedigree <- function(first_gen,  # the desired starting generation
+                            last_gen,   # the desired last generation
+                            data_dir,   # the directory housing pedigree files
+                            file_stem){ # the stem name shared by all pedigree files
+
+  # empty element to hold the eventual pedigree 
+  ped <- c() 
+    
+  # empty elements to hold vectors of missing parents  
+  missing_parents <- c()
+  missing_gens <- c()
+  missing_files <- c()
+
+  first_nchar <- nchar(first_gen)
+  last_nchar <- nchar(last_gen)
+  
+  ## loop across generations
+  for (i in first_gen:last_gen){
+
+    # get the file name for the current generation
+    file.name <- file.path(data_dir, paste0(file_stem, i, ".csv"))
+
+    if (!file.exists(file.name)) {
+        gen_nchar <- nchar(i)
+        n_zeros <- last_nchar - gen_nchar
+        i_str <- paste0(rep('0', n_zeros), i)
+        file.name <- file.path(data_dir, paste0(file_stem, i_str, ".csv"))
+    }
+
+    if (!file.exists(file.name)) {
+        print(paste('Cannot find a pedigree file for generation', i, 
+                   'at', file.name))
+    }
+    
+    ## read in the pedigree for a given generation
+    ped.tmp = read.table(file=file.name, sep=",", header=T,
+                         as.is=TRUE, na.strings="?")
+    
+    ## format desired data columns
+    ped.ids <- ped.tmp[,1]
+    ped.cols <- c('sire', 'dam', 'sex')
+    ped.tmp <- cbind(ped.ids, ped.tmp[ped.cols])
+    colnames(ped.tmp) <- c('id', ped.cols)
+
+    # remove parental data from the first generation
+    if (i == first_gen){
+      ped.tmp[,c(2,3)] <- 0}
+    
+    ## check that parents are in the previous generation
+    if (i != first_gen){
+      tmp <- check.ped(ped.tmp , ped.prev)   
+      if (length(tmp) > 0){
+        print(paste('Generation', paste0(i, ':'), length(tmp), 'parent IDs were not found in generation', i-1))
+      }
+    }
+    
+    ped.prev <- ped.tmp	
+    ped <- rbind(ped,ped.tmp)
+      
+  } # end of generation loop
+
+  ## change sex coding from alphabetical to numeric, where F:0, M:1
   ped.tmp <- encode.sex(ped.tmp)
   ped <- encode.sex(ped)
   
@@ -61,6 +187,7 @@ format.pedigree <- function(first_gen,  # the desired starting generation
   return(out)
   
 }
+
 
 # combine pedigrees
 get.ped.comb <- function(prev_pedigree, breed_results){

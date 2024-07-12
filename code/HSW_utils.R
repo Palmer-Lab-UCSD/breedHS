@@ -200,9 +200,6 @@ wfu_raw_to_hsw <- function(ped, outdir) {
         ped <- ped_gens[[i]]
         ped <- ped[order(ped$id),]
         gen <- names(ped_gens)[[i]]
-        print(paste('i:',i))
-        print(paste('gen:',gen))
-        # print(head(ped))
         if (nchar(gen) == 1) {
             gen <- paste0('00', gen)
         }
