@@ -172,10 +172,13 @@ wfu_raw_to_hsw <- function(ped, outdir) {
     }
     
     # remove extra 0's from generation numbers
+    wfu$generation <- as.character(wfu$generation)
     wfu$generation <- gsub('00$','',wfu$generation)
 
     # drop all generations after 40
     # (HS West was founded with rats sent from gen042)
+    # (gen041 ped is only the parents of those rats sent in gen042)
+    wfu$generation <- as.numeric(wfu$generation)
     hsw <- wfu[wfu$generation < 41,]
 
     # add 54 to all generation numbers to equal HSW numbering convention
@@ -190,13 +193,16 @@ wfu_raw_to_hsw <- function(ped, outdir) {
 
     # split the pedigree by generation
     ped_gens <- split(hsw, hsw$generation)
-        
+    print(str(ped_gens))
     # save generations to separate files
     for (i in 1:length(ped_gens)){
         
         ped <- ped_gens[[i]]
         ped <- ped[order(ped$id),]
         gen <- names(ped_gens)[[i]]
+        print(paste('i:',i))
+        print(paste('gen:',gen))
+        # print(head(ped))
         if (nchar(gen) == 1) {
             gen <- paste0('00', gen)
         }
