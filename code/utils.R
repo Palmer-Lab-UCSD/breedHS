@@ -632,3 +632,29 @@ exchange.breeders <- function(
     return(list(M1F2 = all.breeders1, M2F1 = all.breeders2))
     
 }
+
+# create a named vector of all generations (from a single population) involved in sample exchanges
+name.exchanges <- function(sent,     # vector of generations sent to the other population
+                           received) # vector of generations that received from the other population
+{
+
+    all_exchanges <- sort(unique(c(sent, received)))
+    events <- c()
+    
+    for (event in all_exchanges) {
+        if ((event %in% sent) & !(event %in% received)) {
+            event_type <- 'sent'
+        }
+        else if (!(event %in% sent) & (event %in% received)) {
+            event_type <- 'received'
+        }
+        else if ((event %in% sent) & (event %in% received)) {
+            event_type <- 'exchanged'
+        }
+        events <- c(events, event_type)
+    }
+    
+    names(all_exchanges) <- events
+    return(all_exchanges)
+
+}
