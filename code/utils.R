@@ -129,7 +129,6 @@ format.pedigree <- function(first_gen,  # the desired starting generation
   # empty elements to hold vectors of missing parents  
   missing_parents <- c()
   missing_gens <- c()
-  missing_files <- c()
 
   first_nchar <- nchar(first_gen)
   last_nchar <- nchar(last_gen)
@@ -657,4 +656,79 @@ name.exchanges <- function(sent,     # vector of generations sent to the other p
     names(all_exchanges) <- events
     return(all_exchanges)
 
+}
+
+
+# format multiple pedigree files (from one population) to prep them 
+# for merging with pedigree files from another population
+format.pedigree.for.merge <- function(
+                            first_gen,  # the desired starting generation
+                            last_gen,   # the desired last generation
+                            data_dir,   # the directory housing pedigree files
+                            file_stem)  # the stem name shared by all pedigree files
+{
+    
+    # empty element to hold the eventual pedigree 
+    ped <- c() 
+      
+    first_nchar <- nchar(first_gen)
+    last_nchar <- nchar(last_gen)
+    
+    ## loop across generations
+    for (i in first_gen:last_gen){
+        
+  
+        # get the file name for the current generation
+        file.name <- file.path(data_dir, paste0(file_stem, i, ".csv"))
+  
+        if (!file.exists(file.name)) {
+            gen_nchar <- nchar(i)
+            n_zeros <- last_nchar - gen_nchar
+            i_str <- paste0(rep('0', n_zeros), i)
+            file.name <- file.path(data_dir, paste0(file_stem, i_str, ".csv"))
+        }
+    
+        if (!file.exists(file.name)) {
+            print(paste('Cannot find a pedigree file for generation', i, 
+                       'at', file.name))
+        }
+        
+        ## read in the pedigree for a given generation
+        ped.tmp = read.table(file=file.name, sep=",", header=T,
+                             as.is=TRUE, na.strings="?")
+        
+        ## format desired data columns
+        ped.ids <- ped.tmp[,1]
+        ped.cols <- c('sire', 'dam', 'sex', 'generation')
+        ped.tmp <- cbind(ped.ids, ped.tmp[ped.cols])
+        colnames(ped.tmp) <- c('id', ped.cols)
+
+        # order by ID
+        ped.tmp <- as.data.frame(ped.tmp)
+        ped.tmp <- as.matrix(ped.tmp[order(ped.tmp[,1]),])
+
+    
+        # remove parental data from the first generation
+        if (i == first_gen){
+            ped.tmp[,c(2,3)] <- 0}
+        
+        ped <- rbind(ped,ped.tmp)  
+        
+    } # end of generation loop
+  
+    # change sex coding from alphabetical to numeric, where F:0, M:1
+    ped <- encode.sex(ped)
+    ped <- as.data.frame(ped)
+    
+    # split pedigree by generations 
+    for (col in colnames(ped)) {
+        ped[[col]] <- as.numeric(ped[[col]])
+    }
+    ped$generation <- as.numeric(ped$generation)
+    ped_gens <- split(ped, ped$generation)
+  
+      
+    out <- ped_gens
+    return(out)
+  
 }
