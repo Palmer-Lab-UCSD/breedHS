@@ -741,9 +741,10 @@ format.pedigree.for.merge <- function(
 
 
 merge.pedigrees <- function(
-    ped_map,     # pedigree map: csv with per-population gen numbers for all shared generations
-    ex_1_2,      # exchange history from pop1 to pop2: csv w/ cols pop1_from, pop2_to
-    ex_2_1,      # exchange history from pop2 to pop1: csv w/ cols pop2_from, pop1_to
+    merge_into,  # set the merge direction: 1 = from pop2 into pop1, 2 = from pop1 into pop2
+    ped_map,     # pedigree map: path to csv with per-population gen numbers for all shared generations
+    ex_1_2,      # exchange history from pop1 to pop2: path to csv w/ cols pop1_from, pop2_to
+    ex_2_1,      # exchange history from pop2 to pop1: path csv w/ cols pop2_from, pop1_to
     dir_1,       # path to pop1 pedigrees
     stem_1,      # filename stem for pop1 pedigrees
     first_gen_1, # number of the first generation to include from the pop1 pedigree
@@ -751,8 +752,7 @@ merge.pedigrees <- function(
     dir_2,       # path to pop2 pedigrees
     stem_2,      # filename stem for pop2 pedigrees
     first_gen_2, # number of the first generation to include from the pop2 pedigree
-    last_gen_2,  # number of the final generation to include from the pop2 pedigree
-    merge_into)  # set the merge direction: 1 = from pop2 into pop1, 2 = from pop1 into pop2
+    last_gen_2)  # number of the final generation to include from the pop2 pedigree
 {
 
     # read in generation data and classify pedigree generations for each population
@@ -776,7 +776,7 @@ merge.pedigrees <- function(
 
     # construct named vectors of exchanges
     pop1_exchanges <- name.exchanges(pop1_sent, pop1_received)
-    pop1_exchanges <- name.exchanges(pop2_sent, pop2_received)
+    pop2_exchanges <- name.exchanges(pop2_sent, pop2_received)
 
     # format pedigrees for each population
     pop1_ped <- format.pedigree.for.merge(first_gen_1, last_gen_1, dir_1, stem_1)
@@ -816,7 +816,9 @@ merge.pedigrees <- function(
     merged_ped <- list()
     for (gen in receiving_all_gens) {
         if (!gen %in% receiving_gens_to_merge){
-            merged_ped[[gen]] <- receiving_ped[[gen]]
+            ped <- receiving_ped[[gen]]
+            ped$alt_generation <- NA
+            merged_ped[[gen]] <- ped
         } 
     }
     
@@ -828,11 +830,18 @@ merge.pedigrees <- function(
         received_ped <- receiving_ped[[gen]]
         sent_ped <- sending_ped[[sent_gen]]
         ped <- rbind(received_ped, sent_ped)
+        ped$alt_generation <- sent_gen
         ped <- ped[!duplicated(ped[,1]),]
         merged_ped[[gen]] <- ped
     }
     
     # merge generations prior to shipments/receipts and incorporate into the pedigree
+    if (length(received_gens) != length(sent_gens)) {
+        print(paste('Error: number of generations sent from', sending_pop, '(', length(sent_gens), ') \\
+            is not the same as the number of generations received by', receiving_pop, '). Check your \\
+            pedigree map and shipment history input files.'))
+    }
+
     i <- 0
     for (gen in received_prior_gens) {
         i <- i + 1
@@ -843,34 +852,59 @@ merge.pedigrees <- function(
         # sending gens: all generations between the last shipment until the current (ith) shipment
         # (all gens following the previous shipment through and including the ith 'prior' generation)
         sent_gen <- as.numeric(sent_gens[i])
-        sending_prior_gen <- as.numeric(sent_prior_gens[i])
+        sent_prior_gen <- as.numeric(sent_prior_gens[i])
+        receipt_ped$alt_generation <- NA
     
         if (i == 1) {
-            sending_gens <- as.character(sending_founder_gen : sending_prior_gen[i])
+            sending_gens <- as.character(as.numeric(sending_founder_gen) : as.numeric(sent_prior_gen))
         } else if (i > 1) {
             previous_sent_gen <- sent_gens[i-1]
-            sending_gens <- as.character(previous_sent_gen : sending_prior_gen[i])
+            sending_gens <- as.character(as.numeric(previous_sent_gen) : as.numeric(sent_prior_gen))
         }
     
         # list of pedigree generations to merge into the 'prior' generation
         sending_peds <- lapply(sending_gens, function(gen) sending_ped[[gen]])
         names(sending_peds) <- sending_gens
         sending_combined_ped <- do.call(rbind, sending_peds)
+        sending_combined_ped$alt_generation <- sending_combined_ped$generation
+        sending_combined_ped$generation <- gen
     
-        # combine all previous generations from the sending_ population
+        # combine all previous generations from the sending population
         # into the receiving 'prior' generation
+        
         ped <- rbind(receipt_ped, sending_combined_ped)
         ped <- ped[!duplicated(ped[,1]),]
         merged_ped[[gen]] <- ped
-    
-        # reorder generations
-        sorted_names <- sort(as.numeric(names(merged_ped)))
-        merged_ped <- merged_ped[as.character(sorted_names)]
-    
-        # ensure that all generations are present
-        check <- sum(names(merged_ped) != receiving_all_gens)
-        if (check > 0) {
-            print(paste('Not all', receiving_pop, 'generations were included in the merged pedigree!'))
-        }
+
     } # end of received_prior_gens
+    
+    # reorder generations in the complete pedigree
+    sorted_names <- sort(as.numeric(names(merged_ped)))
+    merged_ped <- merged_ped[as.character(sorted_names)]
+                               
+    # ensure that all generations are present
+    check <- sum(names(merged_ped) != receiving_all_gens)
+    if (check > 0) {
+        print(paste('Error: Not all', receiving_pop, 'generations were included in the merged pedigree!'))
+    } else {
+
+        # order each generation by ID, then assign new IDs to enable kinship matrix construction
+        # by breedail in the correct order
+        for (ped in merged_ped) {
+            ped$true_id <- ped$id
+            gen <- as.character(ped$generation[1])
+            for (i in 1:nrow(ped)){
+            
+                i_chr <- nchar(i)
+                n_zeros <- 4 - i_chr
+                zero_str <- paste0(rep('0', n_zeros),collapse='')
+                new_id <- as.numeric(paste0(gen, zero_str, i))
+                ped$id[i] <- new_id
+            }
+            merged_ped[[gen]] <- ped
+        }
+
+        return(merged_ped)
+    }
+
 } # end of function
