@@ -117,7 +117,6 @@ find.ped.errors <- function(first_gen,  # the desired starting generation
 
 
 # format multiple pedigree files (from one population) into a single pedigree
-# (assumes that utils.R is in the same directory as kinship.R and find_mates.R)
 format.pedigree <- function(first_gen,  # the desired starting generation
                             last_gen,   # the desired last generation
                             data_dir,   # the directory housing pedigree files
@@ -126,10 +125,6 @@ format.pedigree <- function(first_gen,  # the desired starting generation
   # empty element to hold the eventual pedigree 
   ped <- c() 
     
-  # empty elements to hold vectors of missing parents  
-  missing_parents <- c()
-  missing_gens <- c()
-
   first_nchar <- nchar(first_gen)
   last_nchar <- nchar(last_gen)
   
@@ -165,12 +160,15 @@ format.pedigree <- function(first_gen,  # the desired starting generation
     if (i == first_gen){
       ped.tmp[,c(2,3)] <- 0}
     
-    ## check that parents are in the previous generation
+    ## drop rows with NA values for parents
     if (i != first_gen){
+      ped.tmp <- ped.tmp[complete.cases(ped.tmp),]
+      # check that parents are in the previous generation
       tmp <- check.ped(ped.tmp , ped.prev)   
       if (length(tmp) > 0){
         print(paste('Generation', paste0(i, ':'), length(tmp), 'parent IDs were not found in generation', i-1))
       }
+      
     }
     
     ped.prev <- ped.tmp	
@@ -230,24 +228,26 @@ select.breeders <- function(first_gen,              # first generation of the pe
   
   # first mate pairing
   if (one_per_sibship){
-    
     sibs <- 'one_per_sibship'
     first.breeders <- find.mates.res(ped.prev,k.prev)
-    colnames(first.breeders) <- c('sire', 'dam', 'kinship')
   } else {
-    
     sibs <- 'multi_per_sibship'
     first.breeders <- find.mates(ped.prev,k.prev)
   }
-  
+
+  colnames(first.breeders) <- c('sire', 'dam', 'kinship')
   round.1 <- rep(1, nrow(first.breeders))
+  round <- round.1
   
   if (n_rounds==1){
-    first.breeders <- cbind(round.1, first.breeders)
-    write.table(first.breeders, 
+    first.breeders <- as.data.frame(cbind(round, first.breeders))
+    first.breeders <- first.breeders[order(first.breeders$kinship),]
+
+    timestamp <- format(Sys.time(),'%Y%m%d-%H:%M:%S')
+    write.csv(first.breeders, 
                 file.path(out_dir, paste0('breedpairs_F', last_gen, '_n1_', 
-                                          sibs, '.txt')),
-                quote=F, row.names=F, sep='\t')
+                                          sibs, '_', timestamp, '.csv')),
+                quote=F, row.names=F)
     return(first.breeders)
   }
   
@@ -274,11 +274,14 @@ select.breeders <- function(first_gen,              # first generation of the pe
   if (n_rounds==2){
     
     round <- c(round.1, round.2)
-    breeders <- cbind(round, breeders)  
-    write.table(breeders,
+    breeders <- as.data.frame(cbind(round, breeders))
+    breeders <- breeders[order(breeders$kinship),]
+
+    timestamp <- format(Sys.time(),'%Y%m%d-%H:%M:%S')
+    write.csv(breeders,
                 file.path(out_dir, paste0('breedpairs_F', last_gen, '_n2_', 
-                                          sibs, '.txt')),
-                quote=F, row.names=F, sep='\t')
+                                          sibs, '_', timestamp, '.csv')),
+                quote=F, row.names=F)
     return(breeders)
   }
   
@@ -308,26 +311,23 @@ select.breeders <- function(first_gen,              # first generation of the pe
       new.mates <- find.mates.given.pop(ped.comb, k.comb, 
                                         pos.prev, pos.next, not.avail.pos)
       
-
       all.mates[[i]] <- new.mates[,1:3]
       round.i[[i]] <- rep(i, nrow(new.mates))
-      
     }
     
     all.breeders <- do.call(rbind, all.mates)
     round <- c(round.1, round.2, unlist(round.i))
-    all.breeders <- cbind(round, all.breeders)
-    write.table(all.breeders,
+    all.breeders <- as.data.frame(cbind(round, all.breeders))
+    all.breeders <- all.breeders[order(all.breeders$kinship),]
+
+    timestamp <- format(Sys.time(),'%Y%m%d-%H:%M:%S')
+    write.csv(all.breeders,
                 file.path(out_dir, paste0('breedpairs_F', last_gen, '_n', n_rounds, 
-                                          '_', sibs, '.txt')),
-                quote=F, row.names=F, sep='\t')
+                                          '_', sibs, '_', timestamp, '.csv')),
+                quote=F, row.names=F)
     
-    return(all.breeders)
-    
-    
+    return(all.breeders) 
   }
-  
-  
 }
 
 # simulate breeding between mate pairs
@@ -658,10 +658,8 @@ name.exchanges <- function(sent,     # vector of generations sent to the other p
         }
         events <- c(events, event_type)
     }
-    
     names(all_exchanges) <- events
     return(all_exchanges)
-
 }
 
 
@@ -683,7 +681,6 @@ format.pedigree.for.merge <- function(
     ## loop across generations
     for (i in first_gen:last_gen){
         
-  
         # get the file name for the current generation
         file.name <- file.path(data_dir, paste0(file_stem, i, ".csv"))
   
@@ -833,9 +830,11 @@ merge.pedigrees <- function(
         i <- i + 1
         sent_gen <- sent_gens[i]
         received_ped <- receiving_ped[[gen]]
+        received_ped$alt_generation <- NA
         sent_ped <- sending_ped[[sent_gen]]
+        sent_ped$alt_generation <- sent_gen
+        sent_ped$generation <- gen
         ped <- rbind(received_ped, sent_ped)
-        ped$alt_generation <- sent_gen
         ped <- ped[!duplicated(ped[,1]),]
         merged_ped[[gen]] <- ped
     }
@@ -851,6 +850,7 @@ merge.pedigrees <- function(
     for (gen in received_prior_gens) {
         i <- i + 1
         receipt_ped <- receiving_ped[[gen]]
+        receipt_ped$alt_generation <- NA
         sending_founder_gen <- sending_exchanges[names(sending_exchanges)=='sent founders']
         sending_first_gen_post_founding <- as.numeric(sending_founder_gen) + 1
     
@@ -858,7 +858,6 @@ merge.pedigrees <- function(
         # (all gens following the previous shipment through and including the ith 'prior' generation)
         sent_gen <- as.numeric(sent_gens[i])
         sent_prior_gen <- as.numeric(sent_prior_gens[i])
-        receipt_ped$alt_generation <- NA
     
         if (i == 1) {
             sending_gens <- as.character(as.numeric(sending_founder_gen) : as.numeric(sent_prior_gen))
@@ -951,6 +950,9 @@ merge.pedigrees <- function(
                 file.name <- file.path(out_dir, paste0(out_stem, gen_str, '.csv'))
                 write.csv(ped, file.name, row.names=F, quote=F, na='?')
             }
+            ped_df <- do.call(rbind, merged_ped)
+            write.csv(ped_df, file.path(out_dir, paste0(out_stem, '_complete_ped_0',
+                      min_gen, '_', max_gen, '.csv')), row.names=F, quote=F, na='?')
         }
 
         if (as_df) {
