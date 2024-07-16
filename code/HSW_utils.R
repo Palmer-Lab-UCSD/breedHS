@@ -347,8 +347,8 @@ wfu_into_hsw_gen <- function(hsw_raw,   # an HSW assignment sheet (csv) w/ breed
     wfu$dam <- gsub('_', '', wfu$dam)
     wfu$sire <- gsub('_', '', wfu$sire)
     wfu$id <- gsub('_', '', wfu$id)
-    wfu$dam_animalid <- sapply(wfu$dam, get_wfu_sw_id, wfu_df = wfu_46)
-    wfu$sire_animalid <- sapply(wfu$sire, get_wfu_sw_id, wfu_df = wfu_46)
+    wfu$dam_animalid <- sapply(wfu$dam, get_wfu_swid, wfu_df = wfu_46)
+    wfu$sire_animalid <- sapply(wfu$sire, get_wfu_swid, wfu_df = wfu_46)
     wfu$generation <- hsw_gen
     wfu <- wfu[,col_order]
 
