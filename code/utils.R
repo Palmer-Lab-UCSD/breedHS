@@ -740,8 +740,9 @@ format.pedigree.for.merge <- function(
 }
 
 
+# merge the pedigrees of two exchanging populations into a single pedigree
+# with a new set of IDs for all individuals
 merge.pedigrees <- function(
-    merge_into,  # set the merge direction: 1 = from pop2 into pop1, 2 = from pop1 into pop2
     ped_map,     # pedigree map: path to csv with per-population gen numbers for all shared generations
     ex_1_2,      # exchange history from pop1 to pop2: path to csv w/ cols pop1_from, pop2_to
     ex_2_1,      # exchange history from pop2 to pop1: path csv w/ cols pop2_from, pop1_to
@@ -752,7 +753,11 @@ merge.pedigrees <- function(
     dir_2,       # path to pop2 pedigrees
     stem_2,      # filename stem for pop2 pedigrees
     first_gen_2, # number of the first generation to include from the pop2 pedigree
-    last_gen_2)  # number of the final generation to include from the pop2 pedigree
+    last_gen_2,  # number of the final generation to include from the pop2 pedigree
+    merge_into,  # set the merge direction: 1 = from pop2 into pop1, 2 = from pop1 into pop2
+    as_df=TRUE,  # set the output type: T = dataframe, F = list of per-gen dataframes
+    out_dir = NULL, # the path and base file stem for all output pedigree files
+    out_stem = NULL)
 {
 
     # read in generation data and classify pedigree generations for each population
@@ -892,7 +897,11 @@ merge.pedigrees <- function(
         # by breedail in the correct order
         for (ped in merged_ped) {
             ped$true_id <- ped$id
+            ped$sire_id <- ped$sire
+            ped$dam_id <- ped$dam
             gen <- as.character(ped$generation[1])
+            ped <- ped[order(as.numeric(ped$id)),]
+            
             for (i in 1:nrow(ped)){
             
                 i_chr <- nchar(i)
@@ -900,11 +909,55 @@ merge.pedigrees <- function(
                 zero_str <- paste0(rep('0', n_zeros),collapse='')
                 new_id <- as.numeric(paste0(gen, zero_str, i))
                 ped$id[i] <- new_id
+                rownames(ped) <- NULL
             }
+
             merged_ped[[gen]] <- ped
+        
+        }
+        
+        # change all instances of a new ID throughout the pedigree
+        all_ids <- unlist(lapply(merged_ped, function(df) df$id))
+        all_true_ids <- unlist(lapply(merged_ped, function(df) df$true_id))
+        names(all_ids) <- NULL
+        names(all_true_ids) <- NULL
+        dups <- duplicated(all_true_ids)
+        all_ids <- all_ids[!dups]
+        all_true_ids <- all_true_ids[!dups]
+        names(all_true_ids) <- all_ids
+
+        for (p in 1:length(merged_ped)) {
+            ped <- merged_ped[[p]]
+            ped$sire <- names(all_true_ids[match(ped$sire, all_true_ids)])
+            ped$dam <- names(all_true_ids[match(ped$dam, all_true_ids)])
+            if (p == 1) {
+                ped$sire <- 0
+                ped$dam <- 0
+            }
+            merged_ped[[p]] <- ped
         }
 
+        # write pedigree generations to file
+        if (!is.null(out_dir) & !is.null(out_stem)) {
+            min_gen <- min(as.numeric(receiving_all_gens))
+            max_gen <- max(as.numeric(receiving_all_gens))
+            max_nchar <- nchar(max_gen)
+            for (gen in receiving_all_gens) {
+                ped <- merged_ped[[gen]]
+                gen_nchar <- nchar(gen)
+                n_zeros <- max_nchar - gen_nchar
+                zero_str <- paste0(rep('0', n_zeros),collapse='')
+                gen_str <- paste0(zero_str, gen)
+                file.name <- file.path(out_dir, paste0(out_stem, gen_str, '.csv'))
+                write.csv(ped, file.name, row.names=F, quote=F, na='?')
+            }
+        }
+
+        if (as_df) {
+            merged_ped <- do.call(rbind, merged_ped)  
+            rownames(merged_ped) <- NULL
+        }
         return(merged_ped)
     }
 
-} # end of function
+}
