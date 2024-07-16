@@ -8,16 +8,15 @@
 ## been properly formatted for use in breedail
 
 source('utils.R')
+library(readxl)
+
 
 # convert HSW animal IDs to HSW access IDS
 animalid_to_accessid <- function(id){
-    
-    # remove letters and underscores
+            
+    # remove letters & underscores, append '11' to the start of the new ID
     clean_id <- gsub('[A-Za-z_]', '', id)
-    
-    # append '11' to the start of the new ID
     accessid <- paste0('11', clean_id)
-    
     return(accessid)
 }
 
@@ -39,6 +38,23 @@ accessid_to_animalid <- function(id){
     return(animalid)
 }
 
+# find a WFU animal ID (SW.ID) given a WFU access ID
+get_wfu_swid <- function(id, wfu_df){
+    wfu_df <- read.csv(wfu_df)
+    sw_id <- wfu_df[wfu_df[,1] == id,]$SW.ID
+    return(sw_id)
+}
+
+
+get_wfu_accessid <- function(
+    id, 
+   shipping_sheet) # formatted shipping sheet, read into R
+{
+    wfu <- shipping[wfu$animalid == id,]
+    accessid <- wfu$id[1]
+    accessid <- gsub('_', '', accessid)
+    return(accessid)
+}
 
 # split a raw WFU pedigree into single-generation csv files, still in raw format
 split_wfu_raw_ped <- function(ped, outdir) {
@@ -215,15 +231,16 @@ wfu_raw_to_hsw <- function(ped, outdir) {
 
 
 # function to produce a breedail pedigree from breeders assignments
-# df is the path to either a complete assignment file (for all colony rats) or a breeders-specific assignment file
-# wfu = path to WFU shipping sheet (xlsx), wfu_gen = WFU generation number provided
-hsw_df_to_ped <- function(df, return_df=FALSE, wfu=NULL, wfu_sheet=NULL, wfu_gen=NULL, outdir=NULL) {
-
-    library(readxl)
+hsw_df_to_ped <- function(df,              # an HSW assignment sheet (csv) w/ breeder assignments
+                          prev_ped=NULL,   # the formatted HSW pedigree for the previous generation, used if WFU IDs are present
+                          outdir=NULL,     # directory in which to save the formatted pedigree file
+                          return_df=FALSE) # whether to return the final df to the R console
+{
     df <- read.csv(df)
+    prev_ped <- read.csv(prev_ped)
     hsw_gen <- df$generation[1]
-    
-    # subset the HSW df to only breeders, depending on df format
+
+    # subset the HSW hsw to only breeders, depending on hsw format
     if ('assignment' %in% colnames(df)) {
         df <- df[df$assignment == 'hsw_breeders',]
     } else if ('breeder' %in% colnames(df)) {
@@ -234,46 +251,31 @@ hsw_df_to_ped <- function(df, return_df=FALSE, wfu=NULL, wfu_sheet=NULL, wfu_gen
         print('Cannot identify an assignment or breeders column to subset')
     }
 
-    # format the HSW df for breedail
+    # format the HSW hsw for breedail
     hsw_keep_cols <- c('rfid','generation','animalid','accessid','sex','dam','sire')
     df <- df[,hsw_keep_cols]
     colnames(df) <- c('rfid','generation','animalid','id','sex','dam_animalid','sire_animalid')
     df$wfu_generation <- NA
+
+    # convert all dam animal IDs to access IDs
     df$dam <- sapply(df$dam_animalid, animalid_to_accessid)
-    df$sire <- sapply(df$sire_animalid, animalid_to_accessid)
+
+    # convert male animal IDs based on HSW vs WFU format
+    for (i in 1:nrow(df)) {
+        animal_id <- df$sire_animalid[i]
+        if (substr(animal_id,1,1) == 'G') {
+            df$sire[i] <- animalid_to_accessid(animal_id)
+        } else {
+            if (is.null(prev_ped)) {
+                print('Please provide a previous pedigree file from which to extract WFU access IDs')
+            }
+            df$sire[i] <- prev_ped[prev_ped$animalid==animal_id,]$id
+        }
+    }
+    
     col_order <- c('id','dam','sire','sex','generation','wfu_generation','rfid',
                    'animalid','dam_animalid','sire_animalid')
     df <- df[,col_order]
-
-    # format the WFU shipping sheet if provided
-    if (!is.null(wfu)){
-        if (is.null(wfu_gen)){
-            print('Please provide a WFU generation number')
-            stop()
-        }
-        if (is.null(wfu_sheet)){
-            print('Please indicate which excel sheet to read from the WFU shipping sheet')
-            stop()
-        }
-        
-        wfu <- as.data.frame(read_excel(wfu, sheet=wfu_sheet))
-        wfu_keep_cols <- c('Dam','Sire','Access ID','Animal ID','Transponder ID','Sex')
-        wfu <- wfu[,wfu_keep_cols]
-        colnames(wfu) <- c('dam','sire','id','animalid','rfid','sex')
-        wfu <- wfu[!is.na(wfu$id),]
-        wfu$wfu_generation <- wfu_gen
-        wfu$dam <- gsub('_', '', wfu$dam)
-        wfu$sire <- gsub('_', '', wfu$sire)
-        wfu$id <- gsub('_', '', wfu$id)
-        wfu$dam_animalid <- NA
-        wfu$sire_animalid <- NA
-        wfu$generation <- hsw_gen
-        wfu <- wfu[,col_order]
-
-        # concatenate HSW and WFU rats
-        df <- rbind(df, wfu)
-    }
-
     df <- df[order(as.numeric(df$id)),]
 
     if (!is.null(outdir)){
@@ -296,5 +298,83 @@ hsw_df_to_ped <- function(df, return_df=FALSE, wfu=NULL, wfu_sheet=NULL, wfu_gen
     if (return_df) {
         return(df)    
     } 
+    
+}
 
+
+# incorporate WFU IDs into the HSW pedigree following an animal transfer
+wfu_into_hsw_gen <- function(hsw_raw,   # an HSW assignment sheet (csv) w/ breeder assignments
+                             wfu_ss,    # a WFU shipping sheet (xlsx) with IDs to add to the current HSW generation
+                             wfu_sheet, # the name of the excel sheet to use from the shipping sheet file
+                             ss_gen,    # the generation number being shipped from WFU
+                             wfu_prev,  # the raw WFU pedigree from the previous generation (prior to shipment)
+                             outdir=NULL,    # directory in which to save the formatted pedigree file
+                             return_df=FALSE) # whether to return the final df to the R console
+{
+    hsw <- read.csv(hsw_raw)
+    wfu <- as.data.frame(read_excel(wfu_ss, sheet=wfu_sheet))
+    wfu_prev <- read.csv(wfu_prev)
+    hsw_gen <- hsw$generation[1]
+
+    # subset the HSW hsw to only breeders, depending on hsw format
+    if ('assignment' %in% colnames(hsw)) {
+        hsw <- hsw[hsw$assignment == 'hsw_breeders',]
+    } else if ('breeder' %in% colnames(hsw)) {
+        hsw <- hsw[hsw$breeder == 1,]
+    } else if ('hsw_breeders' %in% colnames(hsw)) {
+        hsw <- hsw[hsw$hsw_breeders == 1,]
+    } else {
+        print('Cannot identify an assignment or breeders column to subset')
+    }
+
+    # format the HSW hsw for breedail
+    hsw_keep_cols <- c('rfid','generation','animalid','accessid','sex','dam','sire')
+    hsw <- hsw[,hsw_keep_cols]
+    colnames(hsw) <- c('rfid','generation','animalid','id','sex','dam_animalid','sire_animalid')
+    hsw$wfu_generation <- NA
+    hsw$dam <- sapply(hsw$dam_animalid, animalid_to_accessid)
+    hsw$sire <- sapply(hsw$sire_animalid, animalid_to_accessid)
+    col_order <- c('id','dam','sire','sex','generation','wfu_generation','rfid',
+                   'animalid','dam_animalid','sire_animalid')
+    hsw <- hsw[,col_order]
+
+    # format the WFU shipping sheet
+    wfu_keep_cols <- c('Dam','Sire','Access ID','Animal ID','Transponder ID','Sex')
+    wfu <- wfu[,wfu_keep_cols]
+    colnames(wfu) <- c('dam','sire','id','animalid','rfid','sex')
+    wfu <- wfu[!is.na(wfu$id),]
+    wfu$wfu_generation <- ss_gen
+    wfu$dam <- gsub('_', '', wfu$dam)
+    wfu$sire <- gsub('_', '', wfu$sire)
+    wfu$id <- gsub('_', '', wfu$id)
+    wfu$dam_animalid <- sapply(wfu$dam, get_wfu_sw_id, wfu_df = wfu_46)
+    wfu$sire_animalid <- sapply(wfu$sire, get_wfu_sw_id, wfu_df = wfu_46)
+    wfu$generation <- hsw_gen
+    wfu <- wfu[,col_order]
+
+    # concatenate HSW and WFU pedigrees
+    out <- rbind(hsw, wfu)
+    out <- out[order(as.numeric(out$id)),]
+
+        if (!is.null(outdir)){
+        
+        if (nchar(hsw_gen) == 1) {
+            gen <- paste0('00', hsw_gen)
+        } else if (nchar(hsw_gen) == 2) {
+            gen <- paste0('0', hsw_gen)
+        } else if (nchar(hsw_gen) == 3) {
+            gen <- hsw_gen
+        }
+        
+        write.csv(out, file.path(outdir, paste0('hsw_gen', gen, '.csv')), row.names=F, quote=F, na='?')
+    }
+
+    if (!is.logical(return_df)) {
+        stop("return_df should be a logical value")
+    }
+
+    if (return_df) {
+        return(out)    
+    } 
+    
 }
