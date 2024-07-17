@@ -31,6 +31,7 @@ find.ped.errors <- function(first_gen,  # the desired starting generation
   missing_gens <- c()
   missing_parents_files <- c()
   missing_kin_files <- c()
+  empty_parents <- list()
 
   first_nchar <- nchar(first_gen)
   last_nchar <- nchar(last_gen)
@@ -59,8 +60,8 @@ find.ped.errors <- function(first_gen,  # the desired starting generation
     }
     
     ## read in the pedigree for a given generation
-    ped.tmp = read.table(file=file.name, sep=",", header=T,
-                         as.is=TRUE, na.strings="?")
+    ped.tmp = read.table(file=file.name, sep=',', header=T,
+                         as.is=TRUE, na.strings=c('','?','NA'))
     
     ## format desired data columns
     ped.ids <- ped.tmp[,1]
@@ -72,8 +73,8 @@ find.ped.errors <- function(first_gen,  # the desired starting generation
     if (i == first_gen){
       ped.tmp[,c(2,3)] <- 0}
     
-    ## check that parents are in the previous generation
     if (i != first_gen){
+      ## check that parents are in the previous generation
       tmp <- check.ped(ped.tmp , ped.prev)   
       if (length(tmp) > 0){
         missing_parents <- c(missing_parents, tmp)
@@ -82,13 +83,21 @@ find.ped.errors <- function(first_gen,  # the desired starting generation
         missing_kin_files <- c(missing_kin_files, rep(file.name, length(tmp)))
         print(paste('Generation', paste0(i, ':'), length(tmp), 'parent IDs were not found in generation', i-1))
       }
+
+      ## check for missing values
+      parent_nans <- ped.tmp[(is.na(ped.tmp$dam)) | (is.na(ped.tmp$sire)),]
+      if(nrow(parent_nans) > 0) {
+        parent_nans$generation <- i
+        parent_nans <- parent_nans[,c('generation','id','dam','sire','sex')]
+        empty_parents[[i]] <- parent_nans
+      }
     }
     ped.prev <- ped.tmp	
     ped <- rbind(ped,ped.tmp)
   }
+  empty_parents <- do.call(rbind, empty_parents)
 
-
-  if (is.null(missing_parents)) {
+  if ((is.null(missing_parents)) & (length(empty_parents == 0))){
       print('No errors found in the pedigree')
   } else {
       ## write missing parents to a file for investigation
@@ -101,16 +110,25 @@ find.ped.errors <- function(first_gen,  # the desired starting generation
           kin_ped = missing_kin_files)
 
           timestamp <- format(Sys.time(),'%Y%m%d-%H:%M:%S')
-          outstr <- paste0(file_stem, 
+          outstr1 <- paste0(file_stem, '_',
                            rep('0',(last_nchar-first_nchar)),
-                           first_gen, '-', last_gen,
-                           '_missing_parents_', timestamp, '.csv')
-          outfile <- file.path(data_dir, outstr)
-          print(paste('See', outfile, 'for details'))
-          write.csv(missing_df, outfile, row.names=F,quote=F)
+                           first_gen, '_', last_gen,
+                           '_ped_error_missing_parents_', timestamp, '.csv')
+          outfile1 <- file.path(data_dir, outstr1)
+          write.csv(missing_df, outfile1, row.names=F,quote=F)
+          outstr2 <- paste0(file_stem, '_',
+                           rep('0',(last_nchar-first_nchar)),
+                           first_gen, '_', last_gen,
+                           '_ped_error_parent_NAs_', timestamp, '.csv')
+          outfile2 <- file.path(data_dir, outstr2)
+          write.csv(empty_parents, outfile2, row.names=F,quote=F)
+          print(paste('See file(s) for details:'))
+          print(outfile1)
+          print(outfile2)
       }
       if (return_ids) {
-          return(missing_parents)        
+          return(list(missing_ids = missing_ids,
+                      empty_parents = empty_parents))
       }
   }
 }
@@ -908,6 +926,7 @@ merge.pedigrees <- function(
                 zero_str <- paste0(rep('0', n_zeros),collapse='')
                 new_id <- as.numeric(paste0(gen, zero_str, i))
                 ped$id[i] <- new_id
+                id <- ped$id[i]
                 rownames(ped) <- NULL
             }
 
@@ -951,8 +970,9 @@ merge.pedigrees <- function(
                 write.csv(ped, file.name, row.names=F, quote=F, na='?')
             }
             ped_df <- do.call(rbind, merged_ped)
-            write.csv(ped_df, file.path(out_dir, paste0(out_stem, '_complete_ped_0',
-                      min_gen, '_', max_gen, '.csv')), row.names=F, quote=F, na='?')
+            write.complete.ped(min_gen, max_gen, out_dir, out_stem)
+            # write.csv(ped_df, file.path(out_dir, paste0(out_stem, '_complete_ped_0',
+            #           min_gen, '_', max_gen, '.csv')), row.names=F, quote=F, na='?')
         }
 
         if (as_df) {
@@ -962,4 +982,50 @@ merge.pedigrees <- function(
         return(merged_ped)
     }
 
+}
+
+# write multiple pedigree files to one complete pedigree file
+write.complete.ped <- function(
+    first_gen,
+    last_gen,
+    data_dir,
+    file_stem)
+{
+    # empty element to hold the eventual pedigree 
+    ped <- c() 
+      
+    first_nchar <- nchar(first_gen)
+    last_nchar <- nchar(last_gen)
+    
+    ## loop across generations
+    for (i in first_gen:last_gen){
+        
+        # get the file name for the current generation
+        file.name <- file.path(data_dir, paste0(file_stem, i, ".csv"))
+  
+        if (!file.exists(file.name)) {
+            gen_nchar <- nchar(i)
+            n_zeros <- last_nchar - gen_nchar
+            i_str <- paste0(rep('0', n_zeros), i)
+            file.name <- file.path(data_dir, paste0(file_stem, i_str, ".csv"))
+        }
+    
+        if (!file.exists(file.name)) {
+            print(paste('Cannot find a pedigree file for generation', i, 
+                       'at', file.name))
+        }
+        
+        ## read in the pedigree for a given generation
+        ped.tmp = read.table(file=file.name, sep=",", header=T,
+                             as.is=TRUE, na.strings="?")
+        # order by ID
+        ped.tmp <- as.data.frame(ped.tmp)
+        ped.tmp <- ped.tmp[order(ped.tmp[,1]),]
+        
+        ped <- rbind(ped, ped.tmp)
+    }
+    outfile <- file.path(data_dir, paste0(file_stem, 
+                        '_0', first_gen, '_', last_gen, '_complete_ped',  '.csv'))
+    write.csv(ped, outfile, row.names=F, quote=F, na='?')
+    print(paste('Complete pedigree saved to', outfile))
 }
