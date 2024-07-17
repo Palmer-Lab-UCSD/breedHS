@@ -1030,14 +1030,18 @@ write.complete.ped <- function(
 
 # translate desired columns from a given ID type to another ID type
 translate.merged.ids <- function(
-    df,     # the file or R dataframe with IDs to convert
+    input,     # the file or list (output by select.breeders()) with IDs to convert
     id_map, # the ID map file to use for conversion
     cols,   # vector of column names from input that need translating
     from,   # vector of column ID types that need changing (a column name from id_map)
     to)     # vector of replacement ID type (a column name from id_map)
 {
-    if (class(df) != 'data.frame') {
-      df <- read.csv(df)
+    if (class(input) == 'character') {
+      df <- read.csv(input)
+      basefile <- file_path_sans_ext(input)
+    } else if (sum(!names(input) %in% c('pairs','file')) == 0) {
+      df <- input$pairs
+      basefile <- file_path_sans_ext(input$file)
     }
     id_map <- read.csv(id_map)
     
@@ -1055,8 +1059,9 @@ translate.merged.ids <- function(
     }
         
     timestamp <- format(Sys.time(),'%Y%m%d-%H:%M:%S')
-    outfile <- paste0(file_path_sans_ext(df), '_translated_', timestamp, '.csv')
+    outfile <- paste0(basefile, '_translated_', timestamp, '.csv')
     write.csv(df, outfile, row.names=F, quote=F, na='')
+    print(paste('Translated file saved to', outfile))
 
     return(df)
 }
