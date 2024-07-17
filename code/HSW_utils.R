@@ -209,7 +209,7 @@ wfu_raw_to_hsw <- function(ped, outdir) {
 
     # split the pedigree by generation
     ped_gens <- split(hsw, hsw$generation)
-    print(str(ped_gens))
+
     # save generations to separate files
     for (i in 1:length(ped_gens)){
         
