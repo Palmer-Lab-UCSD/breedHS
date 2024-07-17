@@ -1,6 +1,7 @@
 ## UTILITY FUNCTIONS FOR PALMER LAB AIL BREEDER SELECTION CODE
 ## written by Dr. Ben Johnson (bbjohnson@health.ucsd.edu)
 
+library(tools)
 source("kinship.R")
 source("find_mates.R")
 
@@ -262,11 +263,10 @@ select.breeders <- function(first_gen,              # first generation of the pe
     first.breeders <- first.breeders[order(first.breeders$kinship),]
 
     timestamp <- format(Sys.time(),'%Y%m%d-%H:%M:%S')
-    write.csv(first.breeders, 
-                file.path(out_dir, paste0('breedpairs_F', last_gen, '_n1_', 
-                                          sibs, '_', timestamp, '.csv')),
-                quote=F, row.names=F)
-    return(first.breeders)
+    outfile <- file.path(out_dir, paste0('breedpairs_F', last_gen, '_n1_', 
+                                          sibs, '_', timestamp, '.csv'))
+    write.csv(first.breeders, outfile, quote=F, row.names=F)
+    return(list(pairs = first.breeders, file = outfile))
   }
   
   ped.comb.out <- get.ped.comb(ped.prev, first.breeders)
@@ -296,11 +296,10 @@ select.breeders <- function(first_gen,              # first generation of the pe
     breeders <- breeders[order(breeders$kinship),]
 
     timestamp <- format(Sys.time(),'%Y%m%d-%H:%M:%S')
-    write.csv(breeders,
-                file.path(out_dir, paste0('breedpairs_F', last_gen, '_n2_', 
-                                          sibs, '_', timestamp, '.csv')),
-                quote=F, row.names=F)
-    return(breeders)
+    outfile <- file.path(out_dir, paste0('breedpairs_F', last_gen, '_n2_', 
+                                          sibs, '_', timestamp, '.csv'))
+    write.csv(breeders,outfile, quote=F, row.names=F)
+    return(list(pairs = breeders, file = outfile))
   }
   
   else if (n_rounds > 2){
@@ -339,12 +338,10 @@ select.breeders <- function(first_gen,              # first generation of the pe
     all.breeders <- all.breeders[order(all.breeders$kinship),]
 
     timestamp <- format(Sys.time(),'%Y%m%d-%H:%M:%S')
-    write.csv(all.breeders,
-                file.path(out_dir, paste0('breedpairs_F', last_gen, '_n', n_rounds, 
-                                          '_', sibs, '_', timestamp, '.csv')),
-                quote=F, row.names=F)
-    
-    return(all.breeders) 
+    outfile <- file.path(out_dir, paste0('breedpairs_F', last_gen, '_n', n_rounds, 
+                                          '_', sibs, '_', timestamp, '.csv'))
+    write.csv(all.breeders, outfile, quote=F, row.names=F)
+    return(list(pairs = all.breeders, file = outfile))
   }
 }
 
@@ -970,9 +967,10 @@ merge.pedigrees <- function(
                 write.csv(ped, file.name, row.names=F, quote=F, na='?')
             }
             ped_df <- do.call(rbind, merged_ped)
-            write.complete.ped(min_gen, max_gen, out_dir, out_stem)
-            # write.csv(ped_df, file.path(out_dir, paste0(out_stem, '_complete_ped_0',
-            #           min_gen, '_', max_gen, '.csv')), row.names=F, quote=F, na='?')
+            ped_df$sex[ped_df$sex == 0] <- 'F'  # Female = 0
+            ped_df$sex[ped_df$sex == 1] <- 'M'  # Male = 1
+            write.csv(ped_df, file.path(out_dir, paste0(out_stem, '_0',
+                      min_gen, '_', max_gen, '_complete_ped.csv')), row.names=F, quote=F, na='?')
         }
 
         if (as_df) {
@@ -1025,7 +1023,40 @@ write.complete.ped <- function(
         ped <- rbind(ped, ped.tmp)
     }
     outfile <- file.path(data_dir, paste0(file_stem, 
-                        '_0', first_gen, '_', last_gen, '_complete_ped',  '.csv'))
+                        '_0', first_gen, '_', last_gen, '_complete_ped.csv'))
     write.csv(ped, outfile, row.names=F, quote=F, na='?')
     print(paste('Complete pedigree saved to', outfile))
+}
+
+# translate desired columns from a given ID type to another ID type
+translate.merged.ids <- function(
+    df,     # the file or R dataframe with IDs to convert
+    id_map, # the ID map file to use for conversion
+    cols,   # vector of column names from input that need translating
+    from,   # vector of column ID types that need changing (a column name from id_map)
+    to)     # vector of replacement ID type (a column name from id_map)
+{
+    if (class(df) != 'data.frame') {
+      df <- read.csv(df)
+    }
+    id_map <- read.csv(id_map)
+    
+    for (i in 1:length(cols)) {
+        col <- cols[i]
+        from_id <- from[i]
+        to_id <- to[i]
+        use_map <- as.character(id_map[[to_id]])
+        names(use_map) <- as.character(id_map[[from_id]])
+        
+        for (r in 1:nrow(df)) {
+            id_to_change <- as.character(df[[col]][r])
+            df[[col]][r] <- use_map[id_to_change]
+        }
+    }
+        
+    timestamp <- format(Sys.time(),'%Y%m%d-%H:%M:%S')
+    outfile <- paste0(file_path_sans_ext(df), '_translated_', timestamp, '.csv')
+    write.csv(df, outfile, row.names=F, quote=F, na='')
+
+    return(df)
 }
