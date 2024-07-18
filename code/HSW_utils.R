@@ -378,3 +378,100 @@ wfu_into_hsw_gen <- function(hsw_raw,   # an HSW assignment sheet (csv) w/ breed
     } 
     
 }
+
+
+create_breeder_file <- function(
+    pairs,    # R dataframe or path to csv, as output by select.breeders, dam/sire must be animal IDs
+    df,       # colony dataframe or assignment file
+    wfu_ss=NULL, # WFU shipping sheet, if pairing with shipped WFU rats
+    outdir=NULL)
+{
+    if (class(pairs) == 'data.frame') {
+        pairs <- pairs
+    } else if (class(pairs) == 'character') {
+        pairs <- read.csv(pairs)
+    }
+    if (!is.null(wfu_ss)) {    
+        wfu <- as.data.frame(read_excel(wfu_ss))
+    }
+    df <- read.csv(df)
+    gen <- as.numeric(df$generation[1])
+    pairs$generation <- gen
+    pairs$breederpair <- c(
+        paste0('G', gen, '_B0', seq.int(1,9)),
+        paste0('G', gen, '_B0', seq.int(10,nrow(pairs2)))
+    )
+    pairs$sire_animalid <- pairs$sire
+    pairs$dam_animalid <- pairs$dam
+
+    for (i in 1:nrow(pairs)) {
+        
+        dam <- pairs$dam[i]
+        
+        if (substr(dam,1,1)=='G') {
+            dam_df <- df[df$animalid==dam,]
+            pairs$dam_rfid[i] <- as.character(dam_df$rfid)
+            pairs$dam_earpunch[i] <- dam_df$earpunch
+            pairs$dam_coatcolor[i] <- dam_df$coatcolor
+            pairs$dam_rack_num[i] <- dam_df$rack_number
+            pairs$dam_rack_pos[i] <- dam_df$rack_position            
+        } else if (substr(dam,1,1)=='H') {
+            dam_df <- wfu[wfu[['Animal ID']]==dam,]
+            pairs$dam_rfid[i] <- dam_df[['Transponder ID']]
+            pairs$dam_earpunch[i] <- dam_df[['Ear Punch']]
+            pairs$dam_coatcolor[i] <- dam_df[['Coat Color']]
+            pairs$dam_rack_num[i] <- NA
+            pairs$dam_rack_pos[i] <- NA
+            pairs$dam_wfu_cage[i] <- dam_df[['Ship Box']]
+        }
+
+        sire <- pairs$sire[i]
+        
+        if (substr(sire,1,1)=='G') {
+            sire_df <- df[df$animalid==sire,]
+            pairs$sire_rfid[i] <- as.character(sire_df$rfid)
+            pairs$sire_earpunch[i] <- sire_df$earpunch
+            pairs$sire_coatcolor[i] <- sire_df$coatcolor
+            pairs$sire_rack_num[i] <- sire_df$rack_number
+            pairs$sire_rack_pos[i] <- sire_df$rack_position            
+        } else if (substr(sire,1,1)=='H') {
+            sire_df <- wfu[wfu[['Animal ID']]==sire,]
+            pairs$sire_rfid[i] <- sire_df[['Transponder ID']]
+            pairs$sire_earpunch[i] <- sire_df[['Ear Punch']]
+            pairs$sire_coatcolor[i] <- sire_df[['Coat Color']]
+            pairs$sire_rack_num[i] <- NA
+            pairs$sire_rack_pos[i] <- NA
+            pairs$sire_wfu_cage[i] <- sire_df[['Ship Box']]
+        }
+    }
+
+    if (is.null(wfu_ss)) {
+        col_order <- c('generation','breederpair','kinship','dam_rfid','dam_animalid','dam_earpunch',
+                       'dam_coatcolor','dam_rack_num','dam_rack_pos','sire_rfid',
+                       'sire_animalid','sire_earpunch','sire_coatcolor','sire_rack_num','sire_rack_pos')
+        dam_cols <- c('generation','breederpair','kinship','dam_rfid','dam_animalid','dam_earpunch',
+                       'dam_coatcolor','dam_rack_num','dam_rack_pos')
+        sire_cols <- c('generation','breederpair','kinship','sire_rfid','sire_animalid','sire_earpunch',
+                       'sire_coatcolor','sire_rack_num','sire_rack_pos')
+
+    } else {
+        col_order <- c('generation','breederpair','kinship','dam_rfid','dam_animalid','dam_earpunch',
+                       'dam_coatcolor','dam_rack_num','dam_rack_pos','dam_wfu_cage',
+                       'sire_rfid','sire_animalid','sire_earpunch','sire_coatcolor',
+                       'sire_rack_num','sire_rack_pos','sire_wfu_cage')
+        dam_cols <- c('generation','breederpair','kinship','dam_rfid','dam_animalid','dam_earpunch',
+                       'dam_coatcolor','dam_rack_num','dam_rack_pos','dam_wfu_cage')
+        sire_cols <- c('generation','breederpair','kinship','sire_rfid','sire_animalid','sire_earpunch',
+                       'sire_coatcolor','sire_rack_num','sire_rack_pos','sire_wfu_cage')
+
+    }
+    
+    pairs <- pairs[,col_order]
+    if (!is.null(outdir)) {
+        datestamp <- format(Sys.time(),'%Y%m%d')
+        outfile <- paste0('hsw_gen', gen, '_', gen+1, '_parents_', datestamp, '.csv')
+        write.csv(pairs, file.path(outdir, outfile), row.names=F, quote=F, na='')
+    }
+    return(pairs)
+}
+                    
