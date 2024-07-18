@@ -54,16 +54,22 @@ wrapper functions to facilitate the execution of breedail's core algorithm. Thes
 population using breedail for kinship estimation and breeder selection, and/or any pair of populations for whom a 
 common, joint pedigree is needed. 
 Some important functions:
-    -   `find.ped.errors`:
-    -   `format.pedigree`:
-    -   `select.breeders`:
-    -   `mate.breeders`:
-    -   `format.pedigree.for.merge`:
-    -   `merge.pedigrees`:
+    -   `find.ped.errors` Identifies IDs listed as parents in a given generation who are not found in the prior
+    generation. Outputs IDs and relevant file paths to a file for ad-hoc investigation. More error checks are being
+    tested for inclusion soon.
+    -   `format.pedigree` Reads multiple single-generation pedigree files for one population and formats them into 
+    a complete pedigree ready for input into breedail.
+    -   `select.breeders` integrates multiple breedail and breedHS functions to identify maximally-outbred breeder 
+    pairs given a set of pedigree files
+    -   `mate.breeders` Simulates breeding between a population of breeders output by breedail. Results can be 
+    appended to an existing pedigree to explore hypothetical future breeding scenarios.
+    -   `merge.pedigrees` Merges the distinct pedigrees of two separate populations into a common pedigree for input 
+    into breedail. Robust to differences in populations in their generation count and numbering convention, sample ID 
+    naming convention, and the number and direction (either one-directional or bidirectional) of exchanges.
 
-* [HSW_utils.R](code/HSW_utils.R) defines pre-processing functions specifically tailored to data formatting conventions at HSW and WFU.
-While these are not generalizable to other populations as-is, they may provide a useful template for other 
-investigators interested in using breedail. 
+* [HSW_utils.R](code/HSW_utils.R) defines pre-processing functions specifically tailored to data formatting 
+conventions at HSW and WFU. While these are not generalizable to other populations as-is, they may provide a useful 
+template for other investigators interested in using breedail. 
 
 ## Example data
 :construction: :construction: 
