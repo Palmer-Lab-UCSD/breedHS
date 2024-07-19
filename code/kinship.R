@@ -20,7 +20,8 @@ kinship <- function(ped){
     return()
   }
 
-  ## Recode ids from 1:N ##
+  ## Recode ids from 1:N ##h
+  ped_ids <- ped[,1]
   ped.tmp = matrix(0,N,4)
   ped.tmp[,1] = 1:N
   for (i in 1:N){
@@ -34,6 +35,9 @@ kinship <- function(ped){
   
   ## Begin calculation ##
   kinship = diag(rep(1,N))
+  rownames(kinship) <- ped_ids
+  colnames(kinship) <- ped_ids
+
   for (i in 1:N){
     
     i.M = ped[i,2]
