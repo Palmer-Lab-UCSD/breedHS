@@ -164,11 +164,11 @@ format.pedigree <- function(first_gen,  # the desired starting generation
         print(paste('Cannot find a pedigree file for generation', i, 
                    'at', file.name))
     }
-    
+
     ## read in the pedigree for a given generation
     ped.tmp = read.table(file=file.name, sep=",", header=T,
                          as.is=TRUE, na.strings="?")
-    
+
     ## format desired data columns
     ped.ids <- ped.tmp[,1]
     ped.cols <- c('sire', 'dam', 'sex')
@@ -181,7 +181,7 @@ format.pedigree <- function(first_gen,  # the desired starting generation
     
     ## drop rows with NA values for parents
     if (i != first_gen){
-      ped.tmp <- ped.tmp[complete.cases(ped.tmp),]
+      # ped.tmp <- ped.tmp[complete.cases(ped.tmp),]
       # check that parents are in the previous generation
       tmp <- check.ped(ped.tmp , ped.prev)   
       if (length(tmp) > 0){
@@ -969,8 +969,24 @@ merge.pedigrees <- function(
             ped_df <- do.call(rbind, merged_ped)
             ped_df$sex[ped_df$sex == 0] <- 'F'  # Female = 0
             ped_df$sex[ped_df$sex == 1] <- 'M'  # Male = 1
-            write.csv(ped_df, file.path(out_dir, paste0(out_stem, '_0',
-                      min_gen, '_', max_gen, '_complete_ped.csv')), row.names=F, quote=F, na='?')
+            outstr <- paste0(out_stem, '_0', min_gen, '_', max_gen, '_complete_ped.csv')
+            outfile <- file.path(out_dir, outstr)
+            write.csv(ped_df, outfile, row.names=F, quote=F, na='?')
+            print(paste('Merged pedigree written to', outfile))
+            
+            # write an ID map for the merged pedigree
+            id_map <- map.merged.ids(
+              merged_ped = outfile,
+              merged_stem = out_stem,
+              dir_1 = dir_1,
+              stem_1 = stem_1,
+              first_gen_1 = first_gen_1,
+              last_gen_1 = last_gen_1,
+              dir_2 = dir_2,
+              stem_2 = stem_2,
+              first_gen_2 = first_gen_2,
+              last_gen_2 = last_gen_2,
+              out_dir = out_dir)
         }
 
         if (as_df) {
@@ -987,7 +1003,8 @@ write.complete.ped <- function(
     first_gen,
     last_gen,
     data_dir,
-    file_stem)
+    file_stem,
+    save_file = TRUE)
 {
     # empty element to hold the eventual pedigree 
     ped <- c() 
@@ -1022,10 +1039,13 @@ write.complete.ped <- function(
         
         ped <- rbind(ped, ped.tmp)
     }
-    outfile <- file.path(data_dir, paste0(file_stem, 
-                        '_0', first_gen, '_', last_gen, '_complete_ped.csv'))
-    write.csv(ped, outfile, row.names=F, quote=F, na='?')
-    print(paste('Complete pedigree saved to', outfile))
+    if (save_file) {
+      outfile <- file.path(data_dir, paste0(file_stem, 
+                          '_0', first_gen, '_', last_gen, '_complete_ped.csv'))
+      write.csv(ped, outfile, row.names=F, quote=F, na='?')
+      print(paste('Complete pedigree saved to', outfile))
+    }
+    return(ped)
 }
 
 # translate desired columns from a given ID type to another ID type
@@ -1064,4 +1084,133 @@ translate.merged.ids <- function(
     print(paste('Translated file saved to', outfile))
 
     return(df)
+}
+
+
+# create a map for IDs used in a merged pedigree
+map.merged.ids <- function(
+    merged_ped, # path to a complete merged pedigree
+    merged_stem,
+    dir_1,
+    stem_1,
+    first_gen_1,
+    last_gen_1,
+    dir_2,
+    stem_2,
+    first_gen_2,
+    last_gen_2,
+    out_dir=NULL)
+{
+
+    merged_ped <- read.csv(merged_ped)
+    
+    ped1 <- write.complete.ped(
+        first_gen = first_gen_1,
+        last_gen = last_gen_1,
+        data_dir = dir_1,
+        file_stem = stem_1,
+        save_file = FALSE)
+
+    ped2 <- write.complete.ped(
+        first_gen = first_gen_2,
+        last_gen = last_gen_2,
+        data_dir = dir_2,
+        file_stem = stem_2,
+        save_file = FALSE)
+
+    use_cols <- c('id','rfid','animalid')
+    ped1 <- ped1[,use_cols]
+    ped2 <- ped2[,use_cols]
+    ped_all <- rbind(ped1, ped2)
+
+    id_map <- data.frame(
+        generation = merged_ped$generation,
+        merged_id = merged_ped$id,
+        accessid = merged_ped$true_id)
+
+    id_map <- merge(id_map, ped_all, by.x='accessid', by.y='id')
+    id_map <- id_map[,c('generation','merged_id','accessid','animalid','rfid')]
+    id_map <- id_map[order(as.numeric(id_map$merged_id)),]
+    id_map <- id_map[!duplicated(id_map$merged_id),]
+    
+    filename <- paste0(merged_stem, '_id_map.csv')
+    outfile <- file.path(out_dir, filename)
+    write.csv(id_map, outfile, row.names=F, quote=F, na='')
+    print(paste('ID map written to', outfile))
+    return(id_map)
+}
+
+
+# get the kinship of each potential breeder pair in the current generation
+current.kinship <- function(hsw_df, # colony df with ALL HSW rats
+                           first_gen,
+                           last_gen,
+                           data_dir,
+                           file_stem,
+                           id_map = NULL)  # if using a merged pedigree
+{
+    df <- read.csv(hsw_df)
+    if (as.numeric(df$generation[1]) != as.numeric(last_gen)){
+        stop(paste0('Colony dataframe generation (', df$generation[1], 
+                   ') and last_gen (', last_gen, ') must be identical'))
+    }
+    # format the pedigree for kinship estimation
+    ped_for_kinship <- format.pedigree(
+        first_gen = first_gen,
+        last_gen = last_gen,
+        data_dir = data_dir,
+        file_stem = file_stem
+    )
+    use_ped <- ped_for_kinship$ped
+    
+    # estimate kinship across the pedigree
+    k_all <- kinship(use_ped)
+    
+    # subset the kinship matrix to only the final generation
+    if (is.null(id_map)) {
+        kinship_ids <- df$animalid
+        kinship_ids <- sapply(kinship_ids, animalid_to_accessid)
+        k_use <- k_all[kinship_ids, kinship_ids]
+    } else {
+        id_map <- read.csv(id_map)    
+        kinship_map <- id_map[id_map$generation==last_gen,]
+        kinship_ids <- as.character(kinship_map$merged_id)
+        k_use <- k_all[kinship_ids, kinship_ids]
+        for (i in 1:nrow(k_use)) {
+            merged_id <- rownames(k_use)[i] 
+            animalid <- id_map[id_map$merged_id==merged_id,]$animalid
+            rownames(k_use)[i] <- animalid
+            colnames(k_use)[i] <- animalid
+        }
+    }
+
+    # create a file for all hypothetical pairings
+    df <- df[df$animalid %in% rownames(k),]
+    all_males <- df[df$sex=='M',]$animalid
+    all_females <- df[df$sex=='F',]$animalid
+    n_males <- length(all_males)
+    n_females <- length(all_females)
+
+    f_pairs <- rep(all_females, n_males)
+    m_pairs <- rep(all_males, each = n_females)
+
+    all_pairs <- data.frame(dam = f_pairs, sire = m_pairs)
+    for (i in 1:nrow(all_pairs)) {
+        dam <- all_pairs$dam[i]
+        sire <- all_pairs$sire[i]
+        all_pairs$kinship[i] <- k_use[dam, sire]
+    }
+    all_pairs <- all_pairs[order(all_pairs$dam, all_pairs$sire),]
+    
+    # write kinship and pairing files
+    kstr <- paste0(file_stem, '_gen', last_gen, '_kinship_matrix.csv')
+    kfile <- file.path(data_dir, kstr)
+    write.csv(k_use, kfile, row.names=T, quote=F, na='')
+    print(paste('Kinship matrix saved to', kfile))
+    pairstr <- paste0(file_stem, '_gen', last_gen, '_kinship_all_pairings.csv')
+    pairfile <- file.path(data_dir, pairstr)
+    write.csv(all_pairs, pairfile, row.names=F, quot=F, na='')
+    print(paste('Kinship pairings saved to', pairfile))
+
+    return(list(k = k_use, pairs = all_pairs))
 }
