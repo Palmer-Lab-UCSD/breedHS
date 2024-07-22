@@ -48,7 +48,7 @@ find.mates <- function(ped, k){
     k = k[-c(id.1,id.2),-c(id.1,id.2)]
     ibc = ibc[-c(id.1,id.2)]
     output = rbind(output ,
-      c(c(ids[id.1],ids[id.2])[sex.vec[c(id.1,id.2)]+1] , round(min.k,3)) )
+      c(c(ids[id.1],ids[id.2])[sex.vec[c(id.1,id.2)]+1] , round(min.k,4)) )
     sex.vec = sex.vec[-c(id.1,id.2)]
     ids = ids[-c(id.1,id.2)]
   }
@@ -130,7 +130,7 @@ find.mates.res <- function(ped, k){
     ped.tmp = ped.tmp[idx.keep,]
     ibc = ibc[idx.keep]
     output = rbind(output ,
-      c(c(ids[id.1],ids[id.2])[sex.vec[c(id.1,id.2)]+1] , round(min.k,3)) )
+      c(c(ids[id.1],ids[id.2])[sex.vec[c(id.1,id.2)]+1] , round(min.k,4)) )
     ## sex.vec = sex.vec[-c(id.1,id.2)]
     sex.vec = sex.vec[idx.keep]
     ids = ids[idx.keep]
@@ -265,7 +265,7 @@ find.mates.given.pop <- function(ped , k , parent.pos, children.pos, cant.breed.
     k.funky = k.funky[idx.keep , idx.keep]
     ibc = ibc[idx.keep]
     output = rbind(output ,
-      c(c(ids[id.1],ids[id.2])[sex.vec[c(id.1,id.2)]+1] , round(k.pair,3),round(min.k,3)) )
+      c(c(ids[id.1],ids[id.2])[sex.vec[c(id.1,id.2)]+1] , round(k.pair,4),round(min.k,4)) )
     ## sex.vec = sex.vec[-c(id.1,id.2)]
     sex.vec = sex.vec[idx.keep]
     ids = ids[idx.keep]
