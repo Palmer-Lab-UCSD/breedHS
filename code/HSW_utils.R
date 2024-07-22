@@ -582,3 +582,132 @@ count_breeder_pairs <- function(
 
     return(out)
 }
+
+
+# add proposed alternative breeder pairs to an existing breeder file
+add_to_breeder_file <- function(
+    orig_pairs,   # R dataframe or csv path: breeder file output by create_breeder_file()
+    new_pairings, # R list output by get.alternative.pairings()
+    df,           # colony dataframe or assignment file
+    n_new,        # int, the number of desired new pairings to add
+    wfu_ss=NULL,  # WFU shipping sheet, if pairing with shipped WFU rats
+    outdir=NULL)
+{
+    if (class(orig_pairs) == 'data.frame') {
+        orig_pairs <- orig_pairs
+    } else if (class(orig_pairs) == 'character') {
+        orig_pairs <- read.csv(orig_pairs)
+    }
+    if (!is.null(wfu_ss)) {    
+        wfu <- as.data.frame(read_excel(wfu_ss))
+    }
+    new_pairings <- new_pairings$best.pairs  
+    df <- read.csv(df)
+    names(new_pairings)[1:2] <- c('dam_animalid','sire_animalid')
+    gen <- as.numeric(df$generation[1])
+    n_paired <- nrow(orig_pairs)
+    total_pairs <- n_paired + n_new
+
+    all_males <- unique(new_pairings$sire_animalid)
+    all_females <- unique(new_pairings$dam_animalid)
+
+    # subset the number of desired new pairings with minimum kinship
+    for (i in 1:n_new) {
+        if (i == 1) {
+            pairs_to_add <- new_pairings[new_pairings$kinship == min(new_pairings$kinship),]
+            unavail_ids <- c(pairs_to_add$dam_animalid, pairs_to_add$sire_animalid)
+            available_f <- new_pairings[!new_pairings$dam_animalid %in% unavail_ids,] 
+            available_m <- new_pairings[!new_pairings$sire_animalid %in% unavail_ids,]
+            available_pairings <- rbind(available_f, available_m)
+            available_pairings <- available_pairings[!duplicated(available_pairings),]
+            available_pairings <- new_pairings[!new_pairings$dam_animalid %in% unavail_ids,]
+            available_pairings <- available_pairings[!available_pairings$sire_animalid %in% unavail_ids,]
+        }
+        if (i > 1) {
+            if (nrow(available_pairings) == 0) {
+                stop(paste('No further combinations are available for pairing.', 
+                           i-1, 'pairs successfully added'))
+            }
+            next_pair <- available_pairings[available_pairings$kinship == 
+                                            min(available_pairings$kinship),]
+            pairs_to_add <- rbind(pairs_to_add, next_pair)
+            unavail_ids <- unique(c(unavail_ids, pairs_to_add$dam_animalid, pairs_to_add$sire_animalid))
+            available_f <- available_pairings[!(new_pairings$dam_animalid %in% unavail_ids),] 
+            available_m <- new_pairings[!(new_pairings$sire_animalid %in% unavail_ids),]
+            available_pairings <- rbind(available_f, available_m)
+        }
+    }
+
+    for (i in 1:nrow(pairs_to_add)) {
+        
+        dam <- pairs_to_add$dam_animalid[i]
+        
+        if (substr(dam,1,1)=='G') {
+            dam_df <- df[df$animalid==dam,]
+            pairs_to_add$dam_rfid[i] <- as.character(dam_df$rfid)
+            pairs_to_add$dam_earpunch[i] <- dam_df$earpunch
+            pairs_to_add$dam_coatcolor[i] <- dam_df$coatcolor
+            pairs_to_add$dam_rack_num[i] <- dam_df$rack_number
+            pairs_to_add$dam_rack_pos[i] <- dam_df$rack_position            
+        } else if (substr(dam,1,1)=='H') {
+            dam_df <- wfu[wfu[['Animal ID']]==dam,]
+            pairs_to_add$dam_rfid[i] <- dam_df[['Transponder ID']]
+            pairs_to_add$dam_earpunch[i] <- dam_df[['Ear Punch']]
+            pairs_to_add$dam_coatcolor[i] <- dam_df[['Coat Color']]
+            pairs_to_add$dam_rack_num[i] <- NA
+            pairs_to_add$dam_rack_pos[i] <- NA
+            pairs_to_add$dam_wfu_cage[i] <- dam_df[['Ship Box']]
+        }
+
+        sire <- pairs_to_add$sire_animalid[i]
+        
+        if (substr(sire,1,1)=='G') {
+            sire_df <- df[df$animalid==sire,]
+            pairs_to_add$sire_rfid[i] <- as.character(sire_df$rfid)
+            pairs_to_add$sire_earpunch[i] <- sire_df$earpunch
+            pairs_to_add$sire_coatcolor[i] <- sire_df$coatcolor
+            pairs_to_add$sire_rack_num[i] <- sire_df$rack_number
+            pairs_to_add$sire_rack_pos[i] <- sire_df$rack_position            
+        } else if (substr(sire,1,1)=='H') {
+            sire_df <- wfu[wfu[['Animal ID']]==sire,]
+            pairs_to_add$sire_rfid[i] <- sire_df[['Transponder ID']]
+            pairs_to_add$sire_earpunch[i] <- sire_df[['Ear Punch']]
+            pairs_to_add$sire_coatcolor[i] <- sire_df[['Coat Color']]
+            pairs_to_add$sire_rack_num[i] <- NA
+            pairs_to_add$sire_rack_pos[i] <- NA
+            pairs_to_add$sire_wfu_cage[i] <- sire_df[['Ship Box']]
+        }
+    }
+
+    pairs_to_add$generation <- gen
+    if (n_paired < 10) {
+        pairs_to_add$breederpair <- c(
+            paste0('G', gen + 1, '_B0', seq.int((n_paired+1),9)),
+            paste0('G', gen + 1, '_B', seq.int(10,total_pairs))
+        )
+    } else if (n_paired >= 10) {
+        pairs_to_add$breederpair <- paste0('G', gen + 1, '_B', seq.int((n_paired+1),total_pairs))
+    }
+
+    if (is.null(wfu_ss)) {
+        col_order <- c('generation','breederpair','kinship','dam_rfid','dam_animalid','dam_earpunch',
+                       'dam_coatcolor','dam_rack_num','dam_rack_pos','sire_rfid',
+                       'sire_animalid','sire_earpunch','sire_coatcolor','sire_rack_num','sire_rack_pos')
+    } else {
+        col_order <- c('generation','breederpair','kinship','dam_rfid','dam_animalid','dam_earpunch',
+                       'dam_coatcolor','dam_rack_num','dam_rack_pos','dam_wfu_cage',
+                       'sire_rfid','sire_animalid','sire_earpunch','sire_coatcolor',
+                       'sire_rack_num','sire_rack_pos','sire_wfu_cage')
+    }
+    
+    pairs_to_add <- pairs_to_add[,col_order]
+    pairs_to_add$kinship <- round(pairs_to_add$kinship, 4)
+    all_pairs <- rbind(orig_pairs, pairs_to_add)
+    if (!is.null(outdir)) {
+        datestamp <- format(Sys.time(),'%Y%m%d')
+        outfile <- paste0('hsw_gen', gen, '_', gen+1, '_parents_', datestamp, '.csv')
+        write.csv(all_pairs, file.path(outdir, outfile), row.names=F, quote=F, na='')
+    }
+
+    return(all_pairs)
+}
