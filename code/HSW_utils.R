@@ -467,7 +467,7 @@ create_breeder_file <- function(
     }
     
     pairs <- pairs[,col_order]
-    pairs$kinship <- round(pairs$kinship, 3)
+    pairs$kinship <- round(pairs$kinship, 4)
     if (!is.null(outdir)) {
         datestamp <- format(Sys.time(),'%Y%m%d')
         outfile <- paste0('hsw_gen', gen, '_', gen+1, '_parents_', datestamp, '.csv')

@@ -1214,3 +1214,80 @@ current.kinship <- function(hsw_df, # colony df with ALL HSW rats
 
     return(list(k = k_use, pairs = all_pairs))
 }
+
+
+get.alternative.pairings <- function(
+    all_kinship,        # kinship pairings file
+    paired_breeders,    # breeder file 
+    breederpair_counts) # output from count_breeder_pairs()
+
+{
+    k_pairs <- read.csv(all_kinship)
+    pairs <- read.csv(paired_breeders)
+    bp_counts <- breederpair_counts   
+
+        # get the previous generation's breederpair from which each dam or sire was derived
+    k_pairs$dam_breederpair <- as.numeric(sub('.*_B(\\d+)_.*', '\\1', k_pairs$dam))
+    k_pairs$sire_breederpair <- as.numeric(sub('.*_B(\\d+)_.*', '\\1', k_pairs$sire))
+    k_pairs$breeder_combo <- paste0(k_pairs$dam_breederpair, '-', k_pairs$sire_breederpair)
+    pairs$dam_breederpair <- as.numeric(sub('.*_B(\\d+)_.*', '\\1', pairs$dam_animalid))
+    pairs$sire_breederpair <- as.numeric(sub('.*_B(\\d+)_.*', '\\1', pairs$sire_animalid))
+    pairs$breeder_combo <- paste0(pairs$dam_breederpair, '-', pairs$sire_breederpair)
+
+    # get the kinship of all possible pairings for IDs remaining to be paired
+    unpaired_ids <- bp_counts$assigned.but.not.paired
+    unpaired_ids <- unpaired_ids[!is.na(unpaired_ids)]
+    unpaired_m <- unpaired_ids[unpaired_ids %in% k_pairs$sire]
+    unpaired_f <- unpaired_ids[unpaired_ids %in% k_pairs$dam]
+    try_pairs <- k_pairs[(k_pairs$dam %in% unpaired_f) & (k_pairs$sire %in% unpaired_m),]
+
+    # subset to only breederpair combos that have not already been paired
+    try_pairs <- try_pairs[!try_pairs$breeder_combo %in% pairs$breeder_combo,]
+
+    dams <- unique(unpaired_ids[unpaired_ids %in% try_pairs$dam])
+    sires <- unique(unpaired_ids[unpaired_ids %in% try_pairs$sire])
+
+    # create a kinship matrix for all potential new pairs
+    k_use <- matrix(NA, nrow = length(dams), ncol = length(sires), dimnames = list(dams, sires))
+    for (i in 1:nrow(try_pairs)) {
+        dam <- try_pairs$dam[i]
+        sire <- try_pairs$sire[i]
+        kinship <- try_pairs$kinship[i]
+        k_use[dam, sire] <- kinship
+    }
+
+
+    # generate all permutations of pairings
+    all_pairings <- expand.grid(dam = dams, sire = sires)
+    pairing_sets <- combn(1:nrow(try_pairs), length(dams), simplify = FALSE)
+    
+    valid_pairing_sets <- lapply(pairing_sets, function(indices) {
+      pairings <- all_pairings[indices, ]
+      # check for unique dams and sires in each set
+      if(length(unique(pairings$dam)) == length(dams) && length(unique(pairings$sire)) == length(sires)) {
+        return(pairings)
+      } else {
+        return(NULL)
+      }
+    })
+    
+    # remove NULL entries
+    valid_pairing_sets <- Filter(Negate(is.null), valid_pairing_sets)
+    
+    # function to calculate mean kinship for a set of pairings
+    mean_kinship <- function(pairings) {
+      mean(sapply(1:nrow(pairings), function(i) k_use[pairings[i, 1], pairings[i, 2]]))
+    }
+    
+    # calculate mean kinship for each valid set, find the one with the lowest mean kinship
+    mean_kinships <- sapply(valid_pairing_sets, mean_kinship)
+    best_pairing_set <- valid_pairing_sets[[which.min(mean_kinships)]]
+    for (i in 1:nrow(best_pairing_set)) {
+        dam <- best_pairing_set$dam[i]
+        sire <- best_pairing_set$sire[i]
+        best_pairing_set$kinship[i] <- try_pairs[(try_pairs$dam==dam) & (try_pairs$sire==sire),]$kinship
+    }
+
+    return(list(all.combos = try_pairs, best.pairs = best_pairing_set))
+}
+
