@@ -381,9 +381,9 @@ wfu_into_hsw_gen <- function(hsw_raw,   # an HSW assignment sheet (csv) w/ breed
 
 
 create_breeder_file <- function(
-    pairs,    # R dataframe or path to csv, as output by select.breeders, dam/sire must be animal IDs
-    df,       # colony dataframe or assignment file
-    wfu_ss=NULL, # WFU shipping sheet, if pairing with shipped WFU rats
+    pairs,          # R dataframe or path to csv, as output by select.breeders, dam/sire must be animal IDs
+    df,             # colony dataframe or assignment file
+    wfu_ss=NULL,    # WFU shipping sheet, if pairing with shipped WFU rats
     outdir=NULL)
 {
     if (class(pairs) == 'data.frame') {
@@ -398,8 +398,8 @@ create_breeder_file <- function(
     gen <- as.numeric(df$generation[1])
     pairs$generation <- gen
     pairs$breederpair <- c(
-        paste0('G', gen, '_B0', seq.int(1,9)),
-        paste0('G', gen, '_B0', seq.int(10,nrow(pairs2)))
+        paste0('G', gen + 1, '_B0', seq.int(1,9)),
+        paste0('G', gen + 1, '_B', seq.int(10,nrow(pairs)))
     )
     pairs$sire_animalid <- pairs$sire
     pairs$dam_animalid <- pairs$dam
@@ -467,6 +467,7 @@ create_breeder_file <- function(
     }
     
     pairs <- pairs[,col_order]
+    pairs$kinship <- round(pairs$kinship, 3)
     if (!is.null(outdir)) {
         datestamp <- format(Sys.time(),'%Y%m%d')
         outfile <- paste0('hsw_gen', gen, '_', gen+1, '_parents_', datestamp, '.csv')
@@ -479,11 +480,15 @@ create_breeder_file <- function(
 # count the parental breeder pairs that have been or currently need assignment/pairing
 count_breeder_pairs <- function(
     assignments, # assignment sheet with ALL assignments so far
-    paired_breeders)   # 'breeder file': all breeder pairings so far
+    paired_breeders)   # 'breeder file': all breeder pairings so far, or output from create_breeder_file()
 {
     assignments <- read.csv(assignments, na.str=(''))
     assigned_breeders <- assignments[assignments$hsw_breeders==1,]
-    paired_breeders <- read.csv(paired_breeders)
+    if (class(paired_breeders)=='str'){
+        paired_breeders <- read.csv(paired_breeders)    
+    } else {
+        paired_breeders <- paired_breeders
+    }
 
     # all animal IDs that have been assigned and paired so far
     assigned <- assigned_breeders$animalid
