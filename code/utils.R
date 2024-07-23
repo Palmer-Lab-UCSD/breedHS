@@ -139,8 +139,9 @@ find.ped.errors <- function(first_gen,  # the desired starting generation
 format.pedigree <- function(first_gen,  # the desired starting generation
                             last_gen,   # the desired last generation
                             data_dir,   # the directory housing pedigree files
-                            file_stem){ # the stem name shared by all pedigree files
-
+                            file_stem, # the stem name shared by all pedigree files
+                            print_errors = TRUE)
+{
   # empty element to hold the eventual pedigree 
   ped <- c() 
     
@@ -179,13 +180,15 @@ format.pedigree <- function(first_gen,  # the desired starting generation
     if (i == first_gen){
       ped.tmp[,c(2,3)] <- 0}
     
-    ## drop rows with NA values for parents
     if (i != first_gen){
+      ## drop rows with NA values for parents
       # ped.tmp <- ped.tmp[complete.cases(ped.tmp),]
-      # check that parents are in the previous generation
-      tmp <- check.ped(ped.tmp , ped.prev)   
-      if (length(tmp) > 0){
-        print(paste('Generation', paste0(i, ':'), length(tmp), 'parent IDs were not found in generation', i-1))
+      if (print_errors){
+        # check that parents are in the previous generation
+        tmp <- check.ped(ped.tmp , ped.prev)   
+        if (length(tmp) > 0){
+          print(paste('Generation', paste0(i, ':'), length(tmp), 'parent IDs were not found in generation', i-1))
+        }
       }
       
     }
@@ -231,7 +234,7 @@ select.breeders <- function(first_gen,              # first generation of the pe
 {
   
   # format pedigree files into one pedigree
-  ped.out <- format.pedigree(first_gen, last_gen, data_dir, file_stem)
+  ped.out <- format.pedigree(first_gen, last_gen, data_dir, file_stem, print_errors=T)
   ped.tmp <- ped.out$ped.tmp
   ped <- ped.out$ped
   
@@ -266,6 +269,9 @@ select.breeders <- function(first_gen,              # first generation of the pe
     outfile <- file.path(out_dir, paste0('breedpairs_F', last_gen, '_n1_', 
                                           sibs, '_', timestamp, '.csv'))
     write.csv(first.breeders, outfile, quote=F, row.names=F)
+    print(paste('Successfully paired', nrow(first.breeders), 'breeder pairs'))
+    print(paste('Pairing file written to', outfile))
+
     return(list(pairs = first.breeders, file = outfile))
   }
   
@@ -299,6 +305,9 @@ select.breeders <- function(first_gen,              # first generation of the pe
     outfile <- file.path(out_dir, paste0('breedpairs_F', last_gen, '_n2_', 
                                           sibs, '_', timestamp, '.csv'))
     write.csv(breeders,outfile, quote=F, row.names=F)
+    print(paste('Successfully paired', nrow(breeders), 'breeder pairs'))
+    print(paste('Pairing file written to', outfile))
+
     return(list(pairs = breeders, file = outfile))
   }
   
@@ -341,6 +350,8 @@ select.breeders <- function(first_gen,              # first generation of the pe
     outfile <- file.path(out_dir, paste0('breedpairs_F', last_gen, '_n', n_rounds, 
                                           '_', sibs, '_', timestamp, '.csv'))
     write.csv(all.breeders, outfile, quote=F, row.names=F)
+    print(paste('Successfully paired', nrow(all.breeders), 'breeder pairs'))
+    print(paste('Pairing file written to', outfile))
     return(list(pairs = all.breeders, file = outfile))
   }
 }
@@ -410,10 +421,10 @@ exchange.breeders <- function(
         one_per_sibship=TRUE) # boolean: one or multiple breeders per sibship
 {
     
-    ped1_all <- format.pedigree(first_gen_1, last_gen_1-1, dir_1, stem_1)$ped      
-    ped2_all <- format.pedigree(first_gen_2, last_gen_2-1, dir_2, stem_2)$ped      
-    ped1_now <- format.pedigree(first_gen_1, last_gen_1, dir_1, stem_1)$ped.tmp   
-    ped2_now <- format.pedigree(first_gen_2, last_gen_2, dir_2, stem_2)$ped.tmp 
+    ped1_all <- format.pedigree(first_gen_1, last_gen_1-1, dir_1, stem_1, print_errors = F)$ped      
+    ped2_all <- format.pedigree(first_gen_2, last_gen_2-1, dir_2, stem_2, print_errors = F)$ped      
+    ped1_now <- format.pedigree(first_gen_1, last_gen_1, dir_1, stem_1, print_errors = F)$ped.tmp   
+    ped2_now <- format.pedigree(first_gen_2, last_gen_2, dir_2, stem_2, print_errors = F)$ped.tmp 
     
     # remove duplicates from hsw
     ped2_all <- ped2_all[!ped2_all[,1] %in% ped1_all[,1],]
@@ -1082,7 +1093,7 @@ translate.merged.ids <- function(
     write.csv(df, outfile, row.names=F, quote=F, na='')
     print(paste('Translated file saved to', outfile))
 
-    return(df)
+    return(list(pairs = df, file = outfile))
 }
 
 
@@ -1158,8 +1169,9 @@ current.kinship <- function(hsw_df, # colony df with ALL HSW rats
         first_gen = first_gen,
         last_gen = last_gen,
         data_dir = data_dir,
-        file_stem = file_stem
-    )
+        file_stem = file_stem,
+        print_errors = F)
+
     use_ped <- ped_for_kinship$ped
     
     # estimate kinship across the pedigree
@@ -1171,7 +1183,11 @@ current.kinship <- function(hsw_df, # colony df with ALL HSW rats
         kinship_ids <- sapply(kinship_ids, animalid_to_accessid)
         k_use <- k_all[kinship_ids, kinship_ids]
     } else {
-        id_map <- read.csv(id_map)    
+        if (class(id_map) == 'character'){
+            id_map <- read.csv(id_map)    
+        } else if (class(id_map) == 'data.frame'){
+          id_map <- id_map
+        }
         kinship_map <- id_map[id_map$generation==last_gen,]
         kinship_ids <- as.character(kinship_map$merged_id)
         k_use <- k_all[kinship_ids, kinship_ids]
@@ -1221,11 +1237,19 @@ get.alternative.pairings <- function(
     breederpair_counts) # output from count_breeder_pairs()
 
 {
-    k_pairs <- read.csv(all_kinship)
-    pairs <- read.csv(paired_breeders)
+    if (class(all_kinship) == 'character') {
+        k_pairs <- read.csv(all_kinship)
+    } else if (class(all_kinship) == 'data.frame') {
+        k_pairs <- all_kinship
+    }
+    if (class(paired_breeders) == 'character') {
+        pairs <- read.csv(paired_breeders)
+    } else if (class(paired_breeders) == 'data.frame') {
+      pairs <- paired_breeders
+    }
     bp_counts <- breederpair_counts   
 
-        # get the previous generation's breederpair from which each dam or sire was derived
+    # get the previous generation's breederpair from which each dam or sire was derived
     k_pairs$dam_breederpair <- as.numeric(sub('.*_B(\\d+)_.*', '\\1', k_pairs$dam))
     k_pairs$sire_breederpair <- as.numeric(sub('.*_B(\\d+)_.*', '\\1', k_pairs$sire))
     k_pairs$breeder_combo <- paste0(k_pairs$dam_breederpair, '-', k_pairs$sire_breederpair)
@@ -1239,9 +1263,7 @@ get.alternative.pairings <- function(
     unpaired_m <- unpaired_ids[unpaired_ids %in% k_pairs$sire]
     unpaired_f <- unpaired_ids[unpaired_ids %in% k_pairs$dam]
     try_pairs <- k_pairs[(k_pairs$dam %in% unpaired_f) & (k_pairs$sire %in% unpaired_m),]
-
-    # subset to only breederpair combos that have not already been paired
-    try_pairs <- try_pairs[!try_pairs$breeder_combo %in% pairs$breeder_combo,]
+    try_pairs$combo_already_paired <- ifelse(try_pairs$breeder_combo %in% pairs$breeder_combo, 1, 0)
 
     dams <- unique(unpaired_ids[unpaired_ids %in% try_pairs$dam])
     sires <- unique(unpaired_ids[unpaired_ids %in% try_pairs$sire])
@@ -1255,12 +1277,12 @@ get.alternative.pairings <- function(
         k_use[dam, sire] <- kinship
     }
 
-
     # generate all permutations of pairings
     all_pairings <- expand.grid(dam = dams, sire = sires)
-    pairing_sets <- combn(1:nrow(try_pairs), length(dams), simplify = FALSE)
+    pairing_sets <- combn(1:nrow(all_pairings), length(dams), simplify = FALSE)
     
-    valid_pairing_sets <- lapply(pairing_sets, function(indices) {
+    # keep only pairing sets that allow one pairing per individual
+    check_pairing_sets <- lapply(pairing_sets, function(indices) {
       pairings <- all_pairings[indices, ]
       # check for unique dams and sires in each set
       if(length(unique(pairings$dam)) == length(dams) && length(unique(pairings$sire)) == length(sires)) {
@@ -1268,17 +1290,31 @@ get.alternative.pairings <- function(
       } else {
         return(NULL)
       }
-    })
+    } # end of function(indices)
+    ) # end of lapply()
     
     # remove NULL entries
-    valid_pairing_sets <- Filter(Negate(is.null), valid_pairing_sets)
+    valid_pairing_sets <- Filter(Negate(is.null), check_pairing_sets)
+
+    # get breederpair combos of all valid pairing sets 
+    pair_dams <- lapply(valid_pairing_sets, function(pairing) 
+        unlist(as.numeric(sub('.*_B(\\d+)_.*', '\\1', pairing$dam))))
+    pair_sires <- lapply(valid_pairing_sets, function(pairing) 
+        unlist(as.numeric(sub('.*_B(\\d+)_.*', '\\1', pairing$sire))))
+    pair_breeder_combo <- mapply(function(x, y) paste(x, y, sep = "-"), unlist(pair_dams), unlist(pair_sires))
     
-    # function to calculate mean kinship for a set of pairings
+    # split pair_breeder_combo into sublists with the same number of pairings per pairings set
+    split_into_chunks <- function(vec, chunk_size) {
+        split(vec, ceiling(seq_along(vec) / chunk_size))}
+    pair_breeder_combo <- split_into_chunks(pair_breeder_combo, length(dams))
+    
+    # subset to only breederpair combos that have not already been paired
+    keep_pairs <- sapply(pair_breeder_combo, function(x) !any(x %in% pairs$breeder_combo))
+    valid_pairing_sets <- valid_pairing_sets[keep_pairs]
+    
+    # calculate the mean kinship for each valid set, retain the one with the lowest mean kinship
     mean_kinship <- function(pairings) {
-      mean(sapply(1:nrow(pairings), function(i) k_use[pairings[i, 1], pairings[i, 2]]))
-    }
-    
-    # calculate mean kinship for each valid set, find the one with the lowest mean kinship
+      mean(sapply(1:nrow(pairings), function(i) k_use[pairings[i, 1], pairings[i, 2]]))}
     mean_kinships <- sapply(valid_pairing_sets, mean_kinship)
     best_pairing_set <- valid_pairing_sets[[which.min(mean_kinships)]]
     for (i in 1:nrow(best_pairing_set)) {
