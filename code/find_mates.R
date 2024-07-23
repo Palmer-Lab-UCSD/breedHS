@@ -208,7 +208,7 @@ find.mates.given.pop <- function(ped , k , parent.pos, children.pos, cant.breed.
   count = 0
   while(sum(sex) > 0 & count < max.pairs) {
 
-    cat(count, ":", output,"\n")
+    # cat(count, ":", output,"\n")
     count = count+1
     
     min.k = min(k.funky[sex])
