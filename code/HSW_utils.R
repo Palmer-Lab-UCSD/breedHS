@@ -471,7 +471,9 @@ create_breeder_file <- function(
     if (!is.null(outdir)) {
         datestamp <- format(Sys.time(),'%Y%m%d')
         outfile <- paste0('hsw_gen', gen, '_', gen+1, '_parents_', datestamp, '.csv')
+        colony_file <- paste0('hsw_gen', gen, '_', gen+1, '_parents_', datestamp, '_colony.csv')
         write.csv(pairs, file.path(outdir, outfile), row.names=F, quote=F, na='')
+        write.csv(pairs, file.path(outdir, colony_file), row.names=F, quote=F, na='')
     }
     return(pairs)
 }
@@ -706,7 +708,9 @@ add_to_breeder_file <- function(
     if (!is.null(outdir)) {
         datestamp <- format(Sys.time(),'%Y%m%d')
         outfile <- paste0('hsw_gen', gen, '_', gen+1, '_parents_', datestamp, '.csv')
+        colony_file <- paste0('hsw_gen', gen, '_', gen+1, '_parents_', datestamp, '_colony.csv')
         write.csv(all_pairs, file.path(outdir, outfile), row.names=F, quote=F, na='')
+        write.csv(all_pairs, file.path(outdir, colony_file), row.names=F, quote=F, na='')
     }
 
     return(all_pairs)
