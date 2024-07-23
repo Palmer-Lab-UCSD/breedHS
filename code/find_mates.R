@@ -167,7 +167,7 @@ find.mates.given.pop <- function(ped , k , parent.pos, children.pos, cant.breed.
     cat("Warning: number of parents and children specified doesn't ",
         "match the number of individuals in the pedigree file.",
         
-        "Was this inventional?\n")
+        "Was this intentional?\n")
   }
 
   ibc = diag(k)

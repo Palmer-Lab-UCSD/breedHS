@@ -380,6 +380,7 @@ wfu_into_hsw_gen <- function(hsw_raw,   # an HSW assignment sheet (csv) w/ breed
 }
 
 
+# format a breeder file to assist with pairing in the HSW colony
 create_breeder_file <- function(
     pairs,          # R dataframe or path to csv, as output by select.breeders, dam/sire must be animal IDs
     df,             # colony dataframe or assignment file
@@ -390,6 +391,8 @@ create_breeder_file <- function(
         pairs <- pairs
     } else if (class(pairs) == 'character') {
         pairs <- read.csv(pairs)
+    } else if (sum(!names(pairs) %in% c('pairs','file')) == 0) {
+        pairs <- pairs$pairs
     }
     if (!is.null(wfu_ss)) {    
         wfu <- as.data.frame(read_excel(wfu_ss))
@@ -449,20 +452,12 @@ create_breeder_file <- function(
         col_order <- c('generation','breederpair','kinship','dam_rfid','dam_animalid','dam_earpunch',
                        'dam_coatcolor','dam_rack_num','dam_rack_pos','sire_rfid',
                        'sire_animalid','sire_earpunch','sire_coatcolor','sire_rack_num','sire_rack_pos')
-        dam_cols <- c('generation','breederpair','kinship','dam_rfid','dam_animalid','dam_earpunch',
-                       'dam_coatcolor','dam_rack_num','dam_rack_pos')
-        sire_cols <- c('generation','breederpair','kinship','sire_rfid','sire_animalid','sire_earpunch',
-                       'sire_coatcolor','sire_rack_num','sire_rack_pos')
 
     } else {
         col_order <- c('generation','breederpair','kinship','dam_rfid','dam_animalid','dam_earpunch',
                        'dam_coatcolor','dam_rack_num','dam_rack_pos','dam_wfu_cage',
                        'sire_rfid','sire_animalid','sire_earpunch','sire_coatcolor',
                        'sire_rack_num','sire_rack_pos','sire_wfu_cage')
-        dam_cols <- c('generation','breederpair','kinship','dam_rfid','dam_animalid','dam_earpunch',
-                       'dam_coatcolor','dam_rack_num','dam_rack_pos','dam_wfu_cage')
-        sire_cols <- c('generation','breederpair','kinship','sire_rfid','sire_animalid','sire_earpunch',
-                       'sire_coatcolor','sire_rack_num','sire_rack_pos','sire_wfu_cage')
 
     }
     
@@ -471,9 +466,12 @@ create_breeder_file <- function(
     if (!is.null(outdir)) {
         datestamp <- format(Sys.time(),'%Y%m%d')
         outfile <- paste0('hsw_gen', gen, '_', gen+1, '_parents_', datestamp, '.csv')
+        outfile <- file.path(outdir, outfile)
         colony_file <- paste0('hsw_gen', gen, '_', gen+1, '_parents_', datestamp, '_colony.csv')
-        write.csv(pairs, file.path(outdir, outfile), row.names=F, quote=F, na='')
-        write.csv(pairs, file.path(outdir, colony_file), row.names=F, quote=F, na='')
+        colony_file <- file.path(outdir, colony_file)
+        write.csv(pairs, outfile, row.names=F, quote=F, na='')
+        write.csv(pairs, colony_file, row.names=F, quote=F, na='')
+        print(paste('Breeder file written to', outfile))
     }
     return(pairs)
 }
@@ -486,7 +484,7 @@ count_breeder_pairs <- function(
 {
     assignments <- read.csv(assignments, na.str=(''))
     assigned_breeders <- assignments[assignments$hsw_breeders==1,]
-    if (class(paired_breeders)=='str'){
+    if (class(paired_breeders)=='character'){
         paired_breeders <- read.csv(paired_breeders)    
     } else {
         paired_breeders <- paired_breeders
