@@ -257,7 +257,9 @@ select.breeders <- function(first_gen,              # first generation of the pe
     first.breeders <- find.mates(ped.prev,k.prev)
   }
 
-  colnames(first.breeders) <- c('sire', 'dam', 'kinship')
+# note: breedail pedigree columns are ordered sire/dam
+# but find.mates outputs are ordered dam/sire
+  colnames(first.breeders) <- c('dam', 'sire', 'kinship')
   round.1 <- rep(1, nrow(first.breeders))
   round <- round.1
   
@@ -1073,7 +1075,11 @@ translate.merged.ids <- function(
       df <- input$pairs
       basefile <- file_path_sans_ext(input$file)
     }
-    id_map <- read.csv(id_map)
+    if (class(id_map) == 'character') {
+        id_map <- read.csv(id_map)
+    } else if (class(id_map) == 'data.frame') {
+      id_map <- id_map
+    }
     
     for (i in 1:length(cols)) {
         col <- cols[i]
@@ -1280,7 +1286,7 @@ get.alternative.pairings <- function(
     # generate all permutations of pairings
     all_pairings <- expand.grid(dam = dams, sire = sires)
     pairing_sets <- combn(1:nrow(all_pairings), length(dams), simplify = FALSE)
-    
+
     # keep only pairing sets that allow one pairing per individual
     check_pairing_sets <- lapply(pairing_sets, function(indices) {
       pairings <- all_pairings[indices, ]

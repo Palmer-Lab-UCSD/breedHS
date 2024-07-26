@@ -231,7 +231,8 @@ wfu_raw_to_hsw <- function(ped, outdir) {
 
 
 # function to produce a breedail pedigree from breeders assignments
-hsw_df_to_ped <- function(df,              # an HSW assignment sheet (csv) w/ breeder assignments
+hsw_df_to_ped <- function(df,               # an HSW assignment sheet (csv) w/ breeder assignments
+                          breeding_ped=TRUE, # if T, include only assigned breeders in the final gen, if F include all rats
                           prev_ped=NULL,   # the formatted HSW pedigree for the previous generation, used if WFU IDs are present
                           outdir=NULL,     # directory in which to save the formatted pedigree file
                           return_df=FALSE) # whether to return the final df to the R console
@@ -240,15 +241,17 @@ hsw_df_to_ped <- function(df,              # an HSW assignment sheet (csv) w/ br
     prev_ped <- read.csv(prev_ped)
     hsw_gen <- df$generation[1]
 
-    # subset the HSW hsw to only breeders, depending on hsw format
-    if ('assignment' %in% colnames(df)) {
-        df <- df[df$assignment == 'hsw_breeders',]
-    } else if ('breeder' %in% colnames(df)) {
-        df <- df[df$breeder == 1,]
-    } else if ('hsw_breeders' %in% colnames(df)) {
-        df <- df[df$hsw_breeders == 1,]
-    } else {
-        print('Cannot identify an assignment or breeders column to subset')
+    if (breeding_ped) {
+        # subset the HSW hsw to only breeders, depending on hsw format
+        if ('assignment' %in% colnames(df)) {
+            df <- df[df$assignment == 'hsw_breeders',]
+        } else if ('breeder' %in% colnames(df)) {
+            df <- df[df$breeder == 1,]
+        } else if ('hsw_breeders' %in% colnames(df)) {
+            df <- df[df$hsw_breeders == 1,]
+        } else {
+            print('Cannot identify an assignment or breeders column to subset')
+        }
     }
 
     # format the HSW hsw for breedail
@@ -401,8 +404,8 @@ create_breeder_file <- function(
     gen <- as.numeric(df$generation[1])
     pairs$generation <- gen
     pairs$breederpair <- c(
-        paste0('G', gen + 1, '_B0', seq.int(1,9)),
-        paste0('G', gen + 1, '_B', seq.int(10,nrow(pairs)))
+        paste0('HSW', gen + 1, '_B0', seq.int(1,9)),
+        paste0('HSW', gen + 1, '_B', seq.int(10,nrow(pairs)))
     )
     pairs$sire_animalid <- pairs$sire
     pairs$dam_animalid <- pairs$dam
@@ -473,7 +476,7 @@ create_breeder_file <- function(
         write.csv(pairs, colony_file, row.names=F, quote=F, na='')
         print(paste('Breeder file written to', outfile))
     }
-    return(pairs)
+    return(list(pairs = pairs, file = outfile))
 }
 
 
@@ -482,13 +485,17 @@ count_breeder_pairs <- function(
     assignments, # assignment sheet with ALL assignments so far
     paired_breeders)   # 'breeder file': all breeder pairings so far, or output from create_breeder_file()
 {
-    assignments <- read.csv(assignments, na.str=(''))
-    assigned_breeders <- assignments[assignments$hsw_breeders==1,]
+    if (class(assignments) == 'character') {
+        assignments <- read.csv(assignments, na.str=(''))
+    } else if (class(assignments) == 'data.frame') {
+        assignments <- assignments
+    }
     if (class(paired_breeders)=='character'){
         paired_breeders <- read.csv(paired_breeders)    
     } else {
         paired_breeders <- paired_breeders
     }
+    assigned_breeders <- assignments[assignments$hsw_breeders==1,]
 
     # all animal IDs that have been assigned and paired so far
     assigned <- assigned_breeders$animalid
@@ -682,11 +689,11 @@ add_to_breeder_file <- function(
     pairs_to_add$generation <- gen
     if (n_paired < 10) {
         pairs_to_add$breederpair <- c(
-            paste0('G', gen + 1, '_B0', seq.int((n_paired+1),9)),
-            paste0('G', gen + 1, '_B', seq.int(10,total_pairs))
+            paste0('HSW', gen + 1, '_B0', seq.int((n_paired+1),9)),
+            paste0('HSW', gen + 1, '_B', seq.int(10,total_pairs))
         )
     } else if (n_paired >= 10) {
-        pairs_to_add$breederpair <- paste0('G', gen + 1, '_B', seq.int((n_paired+1),total_pairs))
+        pairs_to_add$breederpair <- paste0('HSW', gen + 1, '_B', seq.int((n_paired+1),total_pairs))
     }
 
     if (is.null(wfu_ss)) {
@@ -703,12 +710,21 @@ add_to_breeder_file <- function(
     pairs_to_add <- pairs_to_add[,col_order]
     pairs_to_add$kinship <- round(pairs_to_add$kinship, 4)
     all_pairs <- rbind(orig_pairs, pairs_to_add)
+    all_pairs_slim <- all_pairs[,c('generation','breederpair','kinship','dam_rfid','sire_rfid',
+                                    'dam_animalid','sire_animalid'),]
+
     if (!is.null(outdir)) {
         datestamp <- format(Sys.time(),'%Y%m%d')
         outfile <- paste0('hsw_gen', gen, '_', gen+1, '_parents_', datestamp, '.csv')
-        colony_file <- paste0('hsw_gen', gen, '_', gen+1, '_parents_', datestamp, '_colony.csv')
-        write.csv(all_pairs, file.path(outdir, outfile), row.names=F, quote=F, na='')
-        write.csv(all_pairs, file.path(outdir, colony_file), row.names=F, quote=F, na='')
+        slimfile <- gsub('.csv', '_ids.csv', outfile)
+        colony_file <- gsub('.csv','_colony.csv',outfile)
+        outfile <- file.path(outdir, outfile)
+        slimfile <- file.path(outdir, slimfile)
+        colony_file <- file.path(outdir, colony_file)
+        write.csv(all_pairs, outfile, row.names=F, quote=F, na='')
+        write.csv(all_pairs, colony_file, row.names=F, quote=F, na='')
+        write.csv(all_pairs_slim, slimfile, row.names=F, quote=F, na='')
+        print(paste('Updated breeder file written to', outfile))
     }
 
     return(all_pairs)
