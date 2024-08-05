@@ -1158,14 +1158,14 @@ map.merged.ids <- function(
 
 
 # get the kinship of each potential breeder pair in the current generation
-current.kinship <- function(hsw_df, # colony df with ALL HSW rats
+current.kinship <- function(df, # colony df with ALL HSW rats
                            first_gen,
                            last_gen,
                            data_dir,
                            file_stem,
                            id_map = NULL)  # if using a merged pedigree
 {
-    df <- read.csv(hsw_df)
+    df <- read.csv(df)
     if (as.numeric(df$generation[1]) != as.numeric(last_gen)){
         stop(paste0('Colony dataframe generation (', df$generation[1], 
                    ') and last_gen (', last_gen, ') must be identical'))
@@ -1230,7 +1230,7 @@ current.kinship <- function(hsw_df, # colony df with ALL HSW rats
     print(paste('Kinship matrix saved to', kfile))
     pairstr <- paste0(file_stem, '_gen', last_gen, '_kinship_all_pairings.csv')
     pairfile <- file.path(data_dir, pairstr)
-    write.csv(all_pairs, pairfile, row.names=F, quot=F, na='')
+    write.csv(all_pairs, pairfile, row.names=F, quote=F, na='')
     print(paste('Kinship pairings saved to', pairfile))
 
     return(list(k = k_use, pairs = all_pairs))

@@ -237,10 +237,15 @@ hsw_df_to_ped <- function(df,               # an HSW assignment sheet (csv) w/ b
                           outdir=NULL,     # directory in which to save the formatted pedigree file
                           return_df=FALSE) # whether to return the final df to the R console
 {
-    df <- read.csv(df)
-    prev_ped <- read.csv(prev_ped)
+    if (class(df) == 'character') {
+        df <- read.csv(df)
+    } else if (class(df) == 'data.frame') {
+        df <- df
+    }
     hsw_gen <- df$generation[1]
-
+    if (!is.null(prev_ped)) {
+        prev_ped <- read.csv(prev_ped)
+    }
     if (breeding_ped) {
         # subset the HSW hsw to only breeders, depending on hsw format
         if ('assignment' %in% colnames(df)) {
