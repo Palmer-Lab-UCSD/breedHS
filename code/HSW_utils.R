@@ -56,18 +56,20 @@ get_wfu_accessid <- function(
     return(accessid)
 }
 
-# split a raw WFU pedigree into single-generation csv files, still in raw format
-split_wfu_raw_ped <- function(ped, outdir) {
-    
-    # suppress warnings temporarily - excel formatting can produce a lot
-    oldw <- getOption("warn")
-    options(warn = -1)
+read_wfu_raw_ped <- function(ped)
+{
+    cat('Function: read_wfu_raw_ped() \n')
 
-    # read in the pedigree excel file
-    wfu <- as.data.frame(read_excel(ped))
-
-    # allow warnings again
-    options(warn = oldw)
+    # read in the pedigree file
+    if (file_ext(ped) == 'xlsx') {
+        # suppress warnings temporarily - excel formatting can produce a lot
+        oldw <- getOption('warn')
+        options(warn = -1)
+        wfu <- as.data.frame(read_excel(ped))
+        options(warn = oldw) # allow warnings again
+    } else if (file_ext(ped) == 'csv') {
+        wfu <- read.csv(ped)
+    }
 
     # format generation
     wfu$Generation <- gsub('00$','',wfu$Generation)
@@ -87,10 +89,26 @@ split_wfu_raw_ped <- function(ped, outdir) {
         wfu[,col][wfu[,col]=='NA'] <- NA
     }
 
+    return(wfu)
+}
+
+# split a raw WFU pedigree into single-generation csv files, still in raw format
+split_wfu_raw_ped <- function(
+    ped,    # the complete pedigree, either xlsx or csv format
+    outdir) # the desired directory in which to save per-gen raw pedigree files
+{
+    
+    cat('Function: split_wfu_raw_ped() \n')
+    wfu <- read_wfu_raw_ped(ped)
+
     # split the pedigree by generation
     ped_gens <- split(wfu, wfu$Generation)
         
     # save generations to separate files
+    if (dir.exists(outdir) == FALSE) {
+        dir.create(outdir, showWarnings = TRUE)
+    }
+
     for (i in 1:length(ped_gens)){
         
         ped <- ped_gens[[i]]
@@ -98,7 +116,6 @@ split_wfu_raw_ped <- function(ped, outdir) {
         if (nchar(gen) == 1) {
             gen <- paste0('0', gen)
         }
-        
         write.csv(ped, file.path(outdir, paste0('wfu_raw_gen', gen, '.csv')),
                   row.names=F, quote=F, na='')
     }
@@ -106,28 +123,24 @@ split_wfu_raw_ped <- function(ped, outdir) {
 
 
 # function to format a raw complete pedigree from WFU for use in breedail
-format_wfu_raw_ped <- function(ped,    # path to raw pedigree excel file
-                               outdir) # desired output directory path
+format_wfu_raw_ped <- function(
+    ped,    # path to raw pedigree file (xlsx or csv)
+    keep_cols = NULL,    # vector of column names to keep
+    new_colnames = NULL, # vector of desired new column names, in same order as keep_cols
+    outdir) # desired output directory path
 {
-    # suppress warnings temporarily - excel formatting can produce a lot
-    oldw <- getOption("warn")
-    options(warn = -1)
 
-    # read in the pedigree excel file
-    wfu_in <- as.data.frame(read_excel(ped))
-
-    # allow warnings again
-    options(warn = oldw)
+    cat('Function: format_wfu_raw_ped() \n')
+    wfu <- read_wfu_raw_ped(ped)
 
     # subset only the rows needed to identify breeders using breedail
-    keep_cols <- c('ID.F51', 'Dam.ID', 'Sire.ID', 'Sex', 'Generation','Transpondernumber',
-               'SW.ID','Dam.SW.ID','Sire.SW.ID')
-    wfu <- wfu_in[,keep_cols]
-
+    if (!is.null(keep_cols)) {
+        wfu <- wfu[,keep_cols]
+    }
     # rename columns for compatibility with breedail
-    new_colnames <- c('id', 'dam', 'sire', 'sex', 'generation',
-                      'rfid','animalid','dam_animalid','sire_animalid')
-    colnames(wfu) <- new_colnames
+    if (!is.null(new_colnames)) {
+        colnames(wfu) <- new_colnames
+    }
 
     # format NA's for compatibility with breedail
     for (col in 1:ncol(wfu)){
@@ -142,6 +155,10 @@ format_wfu_raw_ped <- function(ped,    # path to raw pedigree excel file
     ped_gens <- split(wfu, wfu$generation)
         
     # save generations to separate files
+    if (dir.exists(outdir) == FALSE) {
+        dir.create(outdir, showWarnings = TRUE)
+    }
+
     for (i in 1:length(ped_gens)){
         
         ped <- ped_gens[[i]]
@@ -150,36 +167,31 @@ format_wfu_raw_ped <- function(ped,    # path to raw pedigree excel file
         if (nchar(gen) == 1) {
             gen <- paste0('0', gen)
         }
-        
+
         write.csv(ped, file.path(outdir, paste0('wfu_gen', gen, '.csv')),
                   row.names=F, quote=F, na='?')
     }
-
 }
 
 
 # function to format a raw WFU pedigree into HSW gens 0-41 (54-95) for breedail
-wfu_raw_to_hsw <- function(ped, outdir) {
-    
-    # suppress warnings temporarily - excel formatting can produce a lot
-    oldw <- getOption("warn")
-    options(warn = -1)
-
-    # read in the pedigree excel file
-    wfu_in <- as.data.frame(read_excel(ped))
-
-    # allow warnings again
-    options(warn = oldw)
+wfu_raw_to_hsw <- function(
+    keep_cols = NULL,
+    new_colnames = NULL,
+    ped, 
+    outdir) 
+{
+    cat('Function: wfu_raw_to_hsw() \n')
+    wfu <- read_wfu_raw_ped(ped)
 
     # subset only the rows needed to identify breeders using breedail
-    keep_cols <- c('ID.F51', 'Dam.ID', 'Sire.ID', 'Sex', 'Generation','Transpondernumber',
-               'SW.ID','Dam.SW.ID','Sire.SW.ID')
-    wfu <- wfu_in[,keep_cols]
-
+    if (!is.null(keep_cols)) {
+        wfu <- wfu[,keep_cols]
+    }
     # rename columns for compatibility with breedail
-    new_colnames <- c('id', 'dam', 'sire', 'sex', 'generation',
-                      'rfid','animalid','dam_animalid','sire_animalid')
-    colnames(wfu) <- new_colnames
+    if (!is.null(new_colnames)) {
+        colnames(wfu) <- new_colnames
+    }
 
     # format NA's for compatibility with breedail
     for (col in 1:ncol(wfu)){
@@ -203,14 +215,18 @@ wfu_raw_to_hsw <- function(ped, outdir) {
     hsw$generation <- hsw$wfu_generation + 54
 
     # reorder columns
-    new_col_order <- c('id', 'dam', 'sire', 'sex', 'generation', 'wfu_generation',
-                      'rfid','animalid','dam_animalid','sire_animalid')
+    gen_col <- which(colnames(hsw) == 'generation')
+    new_col_order <- c(1:gen_col, ncol(hsw), (gen_col+1):ncol(wfu))
     hsw <- hsw[,new_col_order]
 
     # split the pedigree by generation
     ped_gens <- split(hsw, hsw$generation)
 
     # save generations to separate files
+    if (dir.exists(outdir) == FALSE) {
+        dir.create(outdir, showWarnings = TRUE)
+    }
+
     for (i in 1:length(ped_gens)){
         
         ped <- ped_gens[[i]]
@@ -226,7 +242,6 @@ wfu_raw_to_hsw <- function(ped, outdir) {
         write.csv(ped, file.path(outdir, paste0('hsw_gen', gen, '.csv')),
                   row.names=F, quote=F, na='?')
     }
-
 }
 
 
@@ -319,9 +334,10 @@ wfu_into_hsw_gen <- function(hsw_raw,   # an HSW assignment sheet (csv) w/ breed
                              outdir=NULL,    # directory in which to save the formatted pedigree file
                              return_df=FALSE) # whether to return the final df to the R console
 {
+    cat('Function: wfu_into_hsw_gen() \n')
     hsw <- read.csv(hsw_raw)
     wfu <- as.data.frame(read_excel(wfu_ss, sheet=wfu_sheet))
-    wfu_prev <- read.csv(wfu_prev)
+    # wfu_prev <- read.csv(wfu_prev)
     hsw_gen <- hsw$generation[1]
 
     # subset the HSW hsw to only breeders, depending on hsw format
@@ -355,8 +371,8 @@ wfu_into_hsw_gen <- function(hsw_raw,   # an HSW assignment sheet (csv) w/ breed
     wfu$dam <- gsub('_', '', wfu$dam)
     wfu$sire <- gsub('_', '', wfu$sire)
     wfu$id <- gsub('_', '', wfu$id)
-    wfu$dam_animalid <- sapply(wfu$dam, get_wfu_swid, wfu_df = wfu_46)
-    wfu$sire_animalid <- sapply(wfu$sire, get_wfu_swid, wfu_df = wfu_46)
+    wfu$dam_animalid <- sapply(wfu$dam, get_wfu_swid, wfu_df = wfu_prev)
+    wfu$sire_animalid <- sapply(wfu$sire, get_wfu_swid, wfu_df = wfu_prev)
     wfu$generation <- hsw_gen
     wfu <- wfu[,col_order]
 
