@@ -499,14 +499,17 @@ create_breeder_file <- function(
     
     pairs <- pairs[,col_order]
     pairs$kinship <- round(pairs$kinship, 4)
+    pairs$kinship <- sapply(pairs$kinship, function(x) paste0(x, paste0(rep(0,6-nchar(x)), collapse='')))
+    pairs$comments <- 'breederpair assigned using breedHS'
+    
     if (!is.null(outdir)) {
         datestamp <- format(Sys.time(),'%Y%m%d')
         outfile <- paste0('hsw_gen', gen, '_', gen+1, '_parents_', datestamp, '.csv')
         outfile <- file.path(outdir, outfile)
-        colony_file <- paste0('hsw_gen', gen, '_', gen+1, '_parents_', datestamp, '_colony.csv')
-        colony_file <- file.path(outdir, colony_file)
+        # colony_file <- paste0('hsw_gen', gen, '_', gen+1, '_parents_', datestamp, '_colony.csv')
+        # colony_file <- file.path(outdir, colony_file)
         write.csv(pairs, outfile, row.names=F, quote=F, na='')
-        write.csv(pairs, colony_file, row.names=F, quote=F, na='')
+        # write.csv(pairs, colony_file, row.names=F, quote=F, na='')
         print(paste('Breeder file written to', outfile))
     }
     return(list(pairs = pairs, file = outfile))
@@ -761,4 +764,47 @@ add_to_breeder_file <- function(
     }
 
     return(all_pairs)
+}
+
+# get up to 6 next-best breeder pairings for a given animal ID
+next_best_pairs <- function(
+    id, # animalid of the breeder that needs a new mate pairing
+    kinship, # pairwise kinship df or path to csv file
+    available_ids=NULL, # vector of animalids, or txt file of animalids
+    available_ids_file=NULL) # path to text file of animalids, one per line, no header
+{
+    if (class(kinship) == 'character') {
+        assignments <- read.csv(assignments, na.str=(c('','NA','NaN','nan')))
+    } else if (class(kinship) == 'data.frame') {
+        kinship <- kinship
+    }
+    if (!is.null(available_ids)) {
+        available_ids <- available_ids
+    } 
+    if (!is.null(available_ids_file)) {
+        available_ids <- readLines(available_ids_file)
+    }
+
+    dam <- ifelse(id %in% kinship$dam, TRUE, FALSE)
+    sire <- ifelse(id %in% kinship$sire, TRUE, FALSE)
+    if (sum(c(dam, sire)) == 0){
+        stop(paste('ID', id, 'is not in the kinship matrix'))
+    }
+
+    if (dam) {
+        avail_pairs <- kinship[kinship$dam == id,]
+    } else {
+        avail_pairs <- kinship[kinship$sire == id,]
+    }
+
+    avail_pairs <- avail_pairs[order(avail_pairs$kinship),]
+    
+    if (!is.null(available_ids)) {
+        avail_pairs <- avail_pairs[avail_pairs$dam %in% available_ids | avail_pairs$sire %in% available_ids,]
+    }
+
+    if (nrow(avail_pairs) > 6) {
+        avail_pairs <- avail_pairs[1:6,]
+    }
+    return(avail_pairs)
 }
