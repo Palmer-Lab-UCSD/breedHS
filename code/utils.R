@@ -966,6 +966,10 @@ merge.pedigrees <- function(
         }
 
         # write pedigree generations to file
+        if (dir.exists(out_dir) == FALSE) {
+            dir.create(out_dir, showWarnings = TRUE)
+        }
+
           min_gen <- min(as.numeric(receiving_all_gens))
           max_gen <- max(as.numeric(receiving_all_gens))
           max_nchar <- nchar(max_gen)
