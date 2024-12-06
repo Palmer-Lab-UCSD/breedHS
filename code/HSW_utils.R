@@ -25,7 +25,7 @@ accessid_to_animalid <- function(id){
     
     # remove letters and underscores
     id <- as.character(id)
-    clean_id <- unlist(strsplit(id,'11'))[2]
+    clean_id <- substr(id, start = 3, stop = nchar(id))
     
     rat_no <- substr(clean_id, start = nchar(clean_id)-1, stop = nchar(clean_id))
     pair_no <- substr(clean_id, start = nchar(clean_id)-3, stop = nchar(clean_id)-2)
