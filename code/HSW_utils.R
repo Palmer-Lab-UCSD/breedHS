@@ -29,8 +29,7 @@ accessid_to_animalid <- function(id){
     
     rat_no <- substr(clean_id, start = nchar(clean_id)-1, stop = nchar(clean_id))
     pair_no <- substr(clean_id, start = nchar(clean_id)-3, stop = nchar(clean_id)-2)
-    # regular expression pattern to match both rat and pair numbers, replace with an empty string
-    gen_no <- gsub(paste0(rat_no, '|', pair_no), '', clean_id)
+    gen_no <- unlist(strsplit(clean_id, pair_no))[1]
     
     # construct the animal ID
     animalid <- paste0('G', gen_no, '_', 'B', pair_no, '_', rat_no)
