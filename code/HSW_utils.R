@@ -11,6 +11,12 @@ source('utils.R')
 library(readxl)
 
 
+# print time-stamped messages to stdout
+printout <- function(str) {
+    cat(paste0('\n[', format(Sys.time(), '%Y-%m-%d %H:%M:%S'), ']'), 
+    str, '\n\n')
+}
+
 # convert HSW animal IDs to HSW access IDS
 # animalid_to_accessid <- function(id){
             
