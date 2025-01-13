@@ -103,33 +103,43 @@ find.ped.errors <- function(first_gen,  # the desired starting generation
   } else {
       ## write missing parents to a file for investigation
       if (write_file) {
-          missing_df <- data.frame(
-          id = missing_parents,
-          birth_gen = missing_gens-1,
-          kin_gen = missing_gens,
-          self_ped = missing_parents_files,
-          kin_ped = missing_kin_files)
+          
+          cat('See file(s) for details: \n')
 
-          timestamp <- format(Sys.time(),'%Y%m%d-%H:%M:%S')
-          outstr1 <- paste0(file_stem, '_',
-                           rep('0',(last_nchar-first_nchar)),
-                           first_gen, '_', last_gen,
-                           '_ped_error_missing_parents_', timestamp, '.csv')
-          outfile1 <- file.path(data_dir, outstr1)
-          write.csv(missing_df, outfile1, row.names=F,quote=F)
-          outstr2 <- paste0(file_stem, '_',
-                           rep('0',(last_nchar-first_nchar)),
-                           first_gen, '_', last_gen,
-                           '_ped_error_parent_NAs_', timestamp, '.csv')
-          outfile2 <- file.path(data_dir, outstr2)
-          write.csv(empty_parents, outfile2, row.names=F,quote=F)
-          print(paste('See file(s) for details:'))
-          print(outfile1)
-          print(outfile2)
+          if (!is.null(missing_parents)) {
+            
+            missing_df <- data.frame(
+            id = missing_parents,
+            birth_gen = missing_gens-1,
+            kin_gen = missing_gens,
+            self_ped = missing_parents_files,
+            kin_ped = missing_kin_files)
+
+            datestamp <- format(Sys.time(),'%Y%m%d')
+            outstr1 <- paste0(file_stem, '_',
+                            rep('0',(last_nchar-first_nchar)),
+                            first_gen, '_', last_gen,
+                            '_ped_error_missing_parents_', datestamp, '.csv')
+            outfile1 <- file.path(data_dir, outstr1)
+            write.csv(missing_df, outfile1, row.names=F,quote=F)
+            cat(outfile1, '\n')
+          }
+
+          if (length(empty_parents == 0)) {
+
+            outstr2 <- paste0(file_stem, '_',
+                            rep('0',(last_nchar-first_nchar)),
+                            first_gen, '_', last_gen,
+                            '_ped_error_parent_NAs_', datestamp, '.csv')
+            outfile2 <- file.path(data_dir, outstr2)
+            write.csv(empty_parents, outfile2, row.names=F,quote=F)
+            cat(outfile2, '\n')
+          }
       }
       if (return_ids) {
-          return(list(missing_ids = missing_ids,
-                      empty_parents = empty_parents))
+          # return(list(missing_ids = missing_ids,
+          #             empty_parents = empty_parents))
+          return(empty_parents)
       }
   }
 }
