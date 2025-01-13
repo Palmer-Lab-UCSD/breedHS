@@ -12,11 +12,29 @@ library(readxl)
 
 
 # convert HSW animal IDs to HSW access IDS
-animalid_to_accessid <- function(id){
+# animalid_to_accessid <- function(id){
             
-    # remove letters & underscores, append '11' to the start of the new ID
-    clean_id <- gsub('[A-Za-z_]', '', id)
-    accessid <- paste0('11', clean_id)
+#     # remove letters & underscores, append '11' to the start of the new ID
+#     clean_id <- gsub('[A-Za-z_]', '', id)
+#     accessid <- paste0('11', clean_id)
+#     return(accessid)
+# }
+animalid_to_accessid <- function(id, wfu_sl=NULL){
+    
+    # check for WFU IDs
+    if (grepl('^(HS|WHS)', id)) {
+        if (is.null(wfu_sl)) {
+            cat('This is a WFU ID. Please provide the WFU shipping list to enable conversion of WFU IDs \n')
+        } else {
+            wfu <- read.csv(wfu_sl)
+            id_row <- wfu[wfu[['sw.id']] == id,]
+            accessid <- id_row[['accessid']]
+        }
+    } else {
+        # remove letters & underscores, append '11' to the start of the new ID
+        clean_id <- gsub('[A-Za-z_]', '', id)
+        accessid <- paste0('11', clean_id)
+    }
     return(accessid)
 }
 
@@ -247,7 +265,7 @@ wfu_raw_to_hsw <- function(
 # function to produce a breedail pedigree from breeders assignments
 format_hsw_raw_ped <- function(
     df,                # an HSW assignment sheet (csv) w/ breeder assignments
-    prev_ped=NULL,     # the formatted HSW pedigree for the previous generation, used if WFU IDs are present
+    wfu_map=NULL,      # the WFU shipment list (csv) with WFU access IDs and animal IDs (SW IDs)
     outdir=NULL,       # directory in which to save the formatted pedigree file
     return_df=FALSE)   # whether to return the final df to the R console
 {
@@ -257,10 +275,7 @@ format_hsw_raw_ped <- function(
         df <- df
     }
     hsw_gen <- df$generation[1]
-    if (!is.null(prev_ped)) {
-        prev_ped <- read.csv(prev_ped, na.str=c('','NA','NaN','nan'))
-    }
-    
+
     # subset the HSW hsw to only breeders, depending on hsw format
     if ('assignment' %in% colnames(df)) {
         df <- df[df$assignment == 'hsw_breeders' & !is.na(df$assignment),]
@@ -272,7 +287,7 @@ format_hsw_raw_ped <- function(
         print('Cannot identify an assignment or breeders column to subset')
     }
 
-    # format the HSW hsw for breedail
+    # format the HSW pedigree for breedail
     hsw_keep_cols <- c('rfid','generation','animalid','accessid','sex','dam','sire')
     df <- df[,hsw_keep_cols]
     colnames(df) <- c('rfid','generation','animalid','id','sex','dam_animalid','sire_animalid')
@@ -283,19 +298,29 @@ format_hsw_raw_ped <- function(
 
     # convert male animal IDs based on HSW vs WFU format
     for (i in 1:nrow(df)) {
+
         animal_id <- df$sire_animalid[i]
-        if (substr(animal_id,1,1) == 'G') {
+        if (grepl('^G', animal_id)) {
+            # process HSW animal IDs as normal
             df$sire[i] <- animalid_to_accessid(animal_id)
-        } else {
-            if (is.null(prev_ped)) {
-                cat('Error: Cannot read sire animal IDs! \n')
-                cat('Please check animal ID formatting and/or provide a previous 
-                pedigree file from which to extract WFU access IDs \n')
+        } else if (grepl('^(HS|WHS)', animal_id)) {
+            # use wfu_map for WFU IDs
+            if (!is.null(wfu_map)) {
+                df$sire[i] <- animalid_to_accessid(animal_id, wfu_sl = wfu_map)
             }
-            df$sire[i] <- prev_ped[prev_ped$animalid==animal_id,]$id
+        } else if (grepl('^[0-9]+$', animal_id)) {
+            # access IDs remain unchanged
+            df$sire[i] <- animal_id
+        } else if (is.na(animal_id)) {
+            df$sire[i] <- '?'
+        } else {
+            if (is.null(wfu_map)) {
+                cat('Error: Cannot read animal ID', animal_id, 'from row', i, '\n')
+            } else {
+                df$sire[i] <- wfu_map[wfu_map[['sw.id']]==animal_id,]$id
+            }
         }
     }
-    
     col_order <- c('id','dam','sire','sex','generation','wfu_generation','rfid',
                    'animalid','dam_animalid','sire_animalid')
     df <- df[,col_order]
