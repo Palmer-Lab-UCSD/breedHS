@@ -33,6 +33,7 @@ find.ped.errors <- function(first_gen,  # the desired starting generation
   missing_parents_files <- c()
   missing_kin_files <- c()
   empty_parents <- list()
+  kin_no_parents <- list()
 
   first_nchar <- nchar(first_gen)
   last_nchar <- nchar(last_gen)
@@ -82,7 +83,42 @@ find.ped.errors <- function(first_gen,  # the desired starting generation
         missing_gens <- c(missing_gens, rep(i,length(tmp)))
         missing_parents_files <- c(missing_parents_files, rep(prev.file, length(tmp)))
         missing_kin_files <- c(missing_kin_files, rep(file.name, length(tmp)))
-        print(paste('Generation', paste0(i, ':'), length(tmp), 'parent IDs were not found in generation', i-1))
+
+        # get IDs of offspring whose parents are missing
+        dams <- unique(ped.tmp[,2])
+        sires <- unique(ped.tmp[,3])
+        dams <- dams[which(dams != 0)]
+        sires <- sires[which(sires != 0)]
+        missing_dams_idx <- which(!dams %in% ped.prev[,1])
+        missing_sires_idx <- which(!sires %in% ped.prev[,1])
+        missing_idx <- union(missing_dams_idx, missing_sires_idx)
+        missing_dams <- dams[missing_dams_idx]
+        missing_sires <- sires[missing_sires_idx]
+
+        if (length(missing_idx) > 0) {
+
+          kin_missing_parents <- data.frame(
+            id = ped.tmp[,1][missing_idx],
+            gen = i,
+            parent_gen = i-1,
+            missing_dam = NA,
+            missing_sire = NA)
+        
+          for (r in 1:nrow(kin_missing_parents)) {
+            id <- kin_missing_parents$id[r]
+            dam <- ped.tmp[,2][ped.tmp[,1] == id]
+            sire <- ped.tmp[,3][ped.tmp[,1] == id]
+            if (dam %in% missing_dams) {
+              kin_missing_parents$missing_dam[r] <- dam
+            }
+            if (sire %in% missing_sires) {
+              kin_missing_parents$missing_sire[r] <- sire
+            }
+          }
+          kin_no_parents[[i]] <- kin_missing_parents
+        }
+
+        cat('Generation', paste0(i, ':'), length(tmp), 'parent IDs were not found in generation', i-1, '\n')
       }
 
       ## check for missing values
@@ -96,7 +132,9 @@ find.ped.errors <- function(first_gen,  # the desired starting generation
     ped.prev <- ped.tmp	
     ped <- rbind(ped,ped.tmp)
   }
+  
   empty_parents <- do.call(rbind, empty_parents)
+  kin_no_parents <- do.call(rbind, kin_no_parents)
 
   if ((is.null(missing_parents)) & (length(empty_parents == 0))){
       print('No errors found in the pedigree')
@@ -107,12 +145,12 @@ find.ped.errors <- function(first_gen,  # the desired starting generation
           cat('See file(s) for details: \n')
 
           if (!is.null(missing_parents)) {
-            
+
             missing_df <- data.frame(
             id = missing_parents,
-            birth_gen = missing_gens-1,
+            gen = missing_gens-1,
             kin_gen = missing_gens,
-            self_ped = missing_parents_files,
+            ped = missing_parents_files,
             kin_ped = missing_kin_files)
 
             datestamp <- format(Sys.time(),'%Y%m%d')
@@ -121,19 +159,27 @@ find.ped.errors <- function(first_gen,  # the desired starting generation
                             first_gen, '_', last_gen,
                             '_ped_error_missing_parents_', datestamp, '.csv')
             outfile1 <- file.path(data_dir, outstr1)
-            write.csv(missing_df, outfile1, row.names=F,quote=F)
+            write.csv(missing_df, outfile1, row.names=F, quote=F)
             cat(outfile1, '\n')
-          }
-
-          if (length(empty_parents == 0)) {
 
             outstr2 <- paste0(file_stem, '_',
                             rep('0',(last_nchar-first_nchar)),
                             first_gen, '_', last_gen,
-                            '_ped_error_parent_NAs_', datestamp, '.csv')
+                            '_ped_error_kin_w_missing_parents_', datestamp, '.csv')
             outfile2 <- file.path(data_dir, outstr2)
-            write.csv(empty_parents, outfile2, row.names=F,quote=F)
+            write.csv(kin_no_parents, outfile2, row.names=F, quote=F)
             cat(outfile2, '\n')
+          }
+
+          if (length(empty_parents == 0)) {
+
+            outstr3 <- paste0(file_stem, '_',
+                            rep('0',(last_nchar-first_nchar)),
+                            first_gen, '_', last_gen,
+                            '_ped_error_parent_NAs_', datestamp, '.csv')
+            outfile3 <- file.path(data_dir, outstr3)
+            write.csv(empty_parents, outfile3, row.names=F, quote=F)
+            cat(outfile3, '\n')
           }
       }
       if (return_ids) {
@@ -1019,7 +1065,7 @@ merge.pedigrees <- function(
             merged_ped <- do.call(rbind, merged_ped)  
             rownames(merged_ped) <- NULL
         }
-        return(list(pedigree = merged_ped, id.map = id_map))
+        return(list(pedigree = merged_ped, id.map = id_map, file = outfile))
     }
 
 }
@@ -1088,13 +1134,20 @@ translate.merged.ids <- function(
     } else if (sum(!names(input) %in% c('pairs','file')) == 0) {
       df <- input$pairs
       basefile <- file_path_sans_ext(input$file)
-    }
+    } else if (sum(!names(input) %in% c('pedigree','id.map','file')) == 0) {
+      df <- input$pedigree
+      basefile <- file_path_sans_ext(input$file)
+    } 
     if (class(id_map) == 'character') {
         id_map <- read.csv(id_map)
     } else if (class(id_map) == 'data.frame') {
       id_map <- id_map
-    }
+    } else if (sum(!names(input) %in% c('pedigree','id.map')) == 0) {
+      id_map <- id_map$id.map
+    } 
     
+    print(dim(df))
+    print(dim(id_map))
     for (i in 1:length(cols)) {
         col <- cols[i]
         from_id <- from[i]
@@ -1107,9 +1160,11 @@ translate.merged.ids <- function(
             df[[col]][r] <- use_map[id_to_change]
         }
     }
-        
+    
+    from_str <- paste0(unique(from), collapse='_')
+    to_str <- paste0(unique(to), collapse='_')
     timestamp <- format(Sys.time(),'%Y%m%d-%H:%M:%S')
-    outfile <- paste0(basefile, '_translated_', timestamp, '.csv')
+    outfile <- paste0(basefile, '_translated_', from_str, '_to_', to_str, '_', timestamp, '.csv')
     write.csv(df, outfile, row.names=F, quote=F, na='')
     print(paste('Translated file saved to', outfile))
 
