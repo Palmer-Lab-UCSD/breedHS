@@ -473,8 +473,16 @@ create_breeder_file <- function(
     pairs$sire_animalid <- pairs$sire
     pairs$dam_animalid <- pairs$dam
 
+    all_cols <- c('generation','breederpair','kinship','dam_rfid','dam_animalid','dam_earpunch',
+                       'dam_coatcolor','dam_rack_num','dam_rack_pos','dam_wfu_cage',
+                       'sire_rfid','sire_animalid','sire_earpunch','sire_coatcolor',
+                       'sire_rack_num','sire_rack_pos','sire_wfu_cage')    
+    
+    for (col in setdiff(all_cols, names(pairs))) {
+        pairs[[col]] <- NA
+    }
     for (i in 1:nrow(pairs)) {
-        
+    
         dam <- pairs$dam[i]
         
         if (substr(dam,1,1)=='G') {
@@ -527,19 +535,21 @@ create_breeder_file <- function(
 
     }
     
+    # final formatting
     pairs <- pairs[,col_order]
     pairs$kinship <- round(pairs$kinship, 4)
     pairs$kinship <- sapply(pairs$kinship, function(x) paste0(x, paste0(rep(0,6-nchar(x)), collapse='')))
+
+    # final columns: two to fill/log as physical pairing happens, one with pairing notes
+    pairs$paired_dam <- 'NONE'
+    pairs$paired_sire <- 'NONE'
     pairs$comments <- 'breederpair assigned using breedHS'
     
     if (!is.null(outdir)) {
         datestamp <- format(Sys.time(),'%Y%m%d')
-        outfile <- paste0('hsw_gen', gen, '_', gen+1, '_parents_', datestamp, '.csv')
+        outfile <- paste0('hsw_gen', gen, '_', gen+1, '_breeders_proposed_', datestamp, '.csv')
         outfile <- file.path(outdir, outfile)
-        # colony_file <- paste0('hsw_gen', gen, '_', gen+1, '_parents_', datestamp, '_colony.csv')
-        # colony_file <- file.path(outdir, colony_file)
         write.csv(pairs, outfile, row.names=F, quote=F, na='')
-        # write.csv(pairs, colony_file, row.names=F, quote=F, na='')
         print(paste('Breeder file written to', outfile))
     }
     return(list(pairs = pairs, file = outfile))
@@ -549,23 +559,35 @@ create_breeder_file <- function(
 # count the parental breeder pairs that have been or currently need assignment/pairing
 count_breeder_pairs <- function(
     assignments, # assignment sheet with ALL assignments so far
-    paired_breeders)   # 'breeder file': all breeder pairings so far, or output from create_breeder_file()
+    breederpairs,   # 'breederpair file' w/ all breeder pairings so far, or the output from create_breeder_file()
+    outdir)
 {
     if (class(assignments) == 'character') {
         assignments <- read.csv(assignments, na.str=(c('','NA','NaN','nan')))
     } else if (class(assignments) == 'data.frame') {
         assignments <- assignments
     }
-    if (class(paired_breeders)=='character'){
-        paired_breeders <- read.csv(paired_breeders, na.str=c('','NA','NaN','nan'))    
+    if (class(breederpairs)=='character'){
+        all_pairs <- read.csv(breederpair, na.str=c('','NA','NaN','nan'))    
     } else {
-        paired_breeders <- paired_breeders
+        breederpairs <- breederpairs
     }
-    assigned_breeders <- assignments[assignments$hsw_breeders==1,]
+    assigned_breeders <- assignments[assignments$assignment=='hsw_breeders',]
+    paired_so_far <- breederpairs[(breederpairs$paired_dam != 'NONE') | (breederpairs$paired_sire != 'NONE'),]
 
     # all animal IDs that have been assigned and paired so far
     assigned <- assigned_breeders$animalid
-    paired <- c(paired_breeders$dam_animalid, paired_breeders$sire_animalid)
+    paired <- c(paired_so_far$dam_animalid, paired_so_far$sire_animalid)
+
+    all_f <- as.matrix(table(assignments$breederpair, assignments$sex))[,1]
+    all_m <- as.matrix(table(assignments$breederpair, assignments$sex))[,2]
+    all_breederpairs <- data.frame(
+        breederpair = names(all_f),
+        females = all_f,
+        males = all_m)
+
+    no_females <- all_breederpairs[all_breederpairs$females==0,]$breederpair
+    no_males <- all_breederpairs[all_breederpairs$males==0,]$breederpair
 
     paired.but.not.assigned <- setdiff(paired, assigned)
     assigned.but.not.paired <- setdiff(assigned, paired)
@@ -581,32 +603,21 @@ count_breeder_pairs <- function(
 
     # dataframe counting all breederpairs represented in pairings
     paired_assignments <- assigned_breeders[assigned_breeders$animalid %in% paired,]
-    f_paired <- as.matrix(table(paired_assignments$breederpair, paired_assignments$sex))[,1]
-    m_paired <- as.matrix(table(paired_assignments$breederpair, paired_assignments$sex))[,2]
-    paired.breederpairs <- data.frame(
-        generation = assignments$generation[1]-1,
-        breederpair = names(f_paired),
-        females_paired = f_paired,
-        males_paired = m_paired)
+    if (nrow(paired_assignments) > 0) {
+        f_paired <- as.matrix(table(paired_assignments$breederpair, paired_assignments$sex))[,1]
+        m_paired <- as.matrix(table(paired_assignments$breederpair, paired_assignments$sex))[,2]
+        paired.breederpairs <- data.frame(
+            generation = assignments$generation[1]-1,
+            breederpair = names(f_paired),
+            females_paired = f_paired,
+            males_paired = m_paired)
+    } else {paired.breederpairs <- NULL}
 
+    # dataframe counting bps lacking offspring assignments to hsw_breeders
     breederpairs.need.assignment <- 
         assigned.breederpairs[(assigned.breederpairs$females_assigned < 1) |
                                        (assigned.breederpairs$males_assigned < 1),]
 
-    breederpairs.need.pairing <- 
-        paired.breederpairs[(paired.breederpairs$females_paired < 1) |
-                                       (paired.breederpairs$males_paired < 1),]
-
-    all_f <- as.matrix(table(assignments$breederpair, assignments$sex))[,1]
-    all_m <- as.matrix(table(assignments$breederpair, assignments$sex))[,2]
-    all_breederpairs <- data.frame(
-        breederpair = names(all_f),
-        females = all_f,
-        males = all_m
-    )
-    no_females <- all_breederpairs[all_breederpairs$females==0,]$breederpair
-    no_males <- all_breederpairs[all_breederpairs$males==0,]$breederpair
-    
     # remove IDs from needs.pairing/needs.assignment lists if there were no M or F to begin with
     needs_assignment <- c()
     for (i in 1:nrow(breederpairs.need.assignment)) {
@@ -624,7 +635,16 @@ count_breeder_pairs <- function(
         }
     }
     breederpairs.need.assignment <- breederpairs.need.assignment[needs_assignment,]
-    
+
+    # dataframe counting bps with offspring assigned to hsw_breeders that still need to be paired
+    if (!is.null(paired.breederpairs)) {
+        breederpairs.need.pairing <- 
+            paired.breederpairs[(paired.breederpairs$females_paired < 1) |
+                                        (paired.breederpairs$males_paired < 1),]
+    } else {
+        breederpairs.need.pairing <- assigned.breederpairs
+    }
+
     needs_pairing <- c()
     for (i in 1:nrow(breederpairs.need.pairing)) {
         pair <- breederpairs.need.pairing$breederpair[i]
@@ -633,17 +653,35 @@ count_breeder_pairs <- function(
         males_paired <- paired.breederpairs[paired.breederpairs$breederpair==pair,]$males_paired
         females_paired <- paired.breederpairs[paired.breederpairs$breederpair==pair,]$females_paired
     
-        if ((total_males > 0) & (males_paired < 1)) {
-            needs_pairing <- c(needs_pairing, pair)
+        if (!is.null(males_paired)) {
+            if ((total_males > 0) & (males_paired < 1)) {
+                needs_pairing <- c(needs_pairing, pair)
+            }
         }
-        if ((total_females > 0) & (females_paired < 1)) {
-            needs_pairing <- c(needs_pairing, pair)
+        if (!is.null(females_paired)) {
+            if ((total_females > 0) & (!is.null(females_paired)) & (females_paired < 1)) {
+                needs_pairing <- c(needs_pairing, pair)
+            }
         }
     }
-    breederpairs.need.pairing <- breederpairs.need.pairing[needs_pairing,]
+    if (!is.null(needs_pairing)) {
+        breederpairs.need.pairing <- breederpairs.need.pairing[beederpairs.need.paring$breederpair %in% needs_pairing,]
+    }
 
-    still.avail.for.assignment <- assignments[is.na(assignments$assignment),]$animalid
+    still.avail.for.assignment <- assignments[assignments$assignment=='not_assigned',]
     
+    if (!is.null(outdir)) {
+
+        datestamp <- format(Sys.time(),'%Y%m%d')
+        outdir <- file.path(outdir, 'bp_counts')
+        outfile1 <- file.path(outdir, paste0('still_avail_for_assignment_', datestamp, '.csv'))
+        dir.create(outdir, showWarnings=F)
+        write.csv(still.avail.for.assignment, outfile1, row.names=F, quote=F, na='')
+
+        still_avail_counts <- table(still.avail.for.assignment$breederpair, still.avail.for.assignment$sex)
+        outfile2 <- file.path(outdir, paste0('still_avail_bp_counts_', datestamp, '.csv'))
+        write.csv(still_avail_counts, outfile2, row.names=T, quote=F, na='')
+    }
     out <- list(all.breederpairs = all_breederpairs,
                 paired.but.not.assigned = paired.but.not.assigned, 
                 assigned.but.not.paired = assigned.but.not.paired, 
@@ -651,7 +689,7 @@ count_breeder_pairs <- function(
                 paired.breederpairs = paired.breederpairs,
                 breederpairs.need.assignment = breederpairs.need.assignment,
                 breederpairs.need.pairing = breederpairs.need.pairing,
-                still.avail.for.assignment = still.avail.for.assignment)
+                still.avail.for.assignment = still.avail.for.assignment$animalid)
 
     return(out)
 }
