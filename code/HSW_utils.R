@@ -18,31 +18,32 @@ printout <- function(str) {
 }
 
 # convert HSW animal IDs to HSW access IDS
-# animalid_to_accessid <- function(id){
+animalid_to_accessid <- function(id){
             
-#     # remove letters & underscores, append '11' to the start of the new ID
-#     clean_id <- gsub('[A-Za-z_]', '', id)
-#     accessid <- paste0('11', clean_id)
-#     return(accessid)
-# }
-animalid_to_accessid <- function(id, wfu_sl=NULL){
-    
-    # check for WFU IDs
-    if (grepl('^(HS|WHS)', id)) {
-        if (is.null(wfu_sl)) {
-            cat('This is a WFU ID. Please provide the WFU shipping list to enable conversion of WFU IDs \n')
-        } else {
-            wfu <- read.csv(wfu_sl)
-            id_row <- wfu[wfu[['sw.id']] == id,]
-            accessid <- id_row[['accessid']]
-        }
-    } else {
-        # remove letters & underscores, append '11' to the start of the new ID
-        clean_id <- gsub('[A-Za-z_]', '', id)
-        accessid <- paste0('11', clean_id)
-    }
+    # remove letters & underscores, append '11' to the start of the new ID
+    clean_id <- gsub('[A-Za-z_]', '', id)
+    accessid <- paste0('11', clean_id)
     return(accessid)
 }
+
+# animalid_to_accessid <- function(id, wfu_sl=NULL){
+    
+#     # check for WFU IDs
+#     if (grepl('^(HS|WHS)', id)) {
+#         if (is.null(wfu_sl)) {
+#             cat('This is a WFU ID. Please provide the WFU shipping list to enable conversion of WFU IDs \n')
+#         } else {
+#             wfu <- read.csv(wfu_sl)
+#             id_row <- wfu[wfu[['sw.id']] == id,]
+#             accessid <- id_row[['accessid']]
+#         }
+#     } else {
+#         # remove letters & underscores, append '11' to the start of the new ID
+#         clean_id <- gsub('[A-Za-z_]', '', id)
+#         accessid <- paste0('11', clean_id)
+#     }
+#     return(accessid)
+# }
 
 # convert HSW access IDs to HSW animal IDS
 accessid_to_animalid <- function(id){
@@ -59,6 +60,20 @@ accessid_to_animalid <- function(id){
     animalid <- paste0('G', gen_no, '_', 'B', pair_no, '_', rat_no)
     
     return(animalid)
+}
+
+# convert WFU SW.ID to access ID
+swid_to_accessid <- function(id, wfu_map) {
+
+    accessid <- wfu_map[wfu_map[['swid']] == id,][['accessid']]
+    return(accessid)
+}
+
+# convert access ID to WFU SW.ID
+swid_to_accessid <- function(id, wfu_map) {
+
+    swid <- wfu_map[wfu_map[['accessid']] == id,][['swid']]
+    return(swid)
 }
 
 # find a WFU animal ID (SW.ID) given a WFU access ID
