@@ -70,7 +70,7 @@ swid_to_accessid <- function(id, wfu_map) {
 }
 
 # convert access ID to WFU SW.ID
-swid_to_accessid <- function(id, wfu_map) {
+accessid_to_swid <- function(id, wfu_map) {
 
     swid <- wfu_map[wfu_map[['accessid']] == id,][['swid']]
     return(swid)
@@ -296,6 +296,7 @@ format_hsw_raw_ped <- function(
         df <- df
     }
     hsw_gen <- df$generation[1]
+    wfu_map <- read.csv(wfu_map)
 
     # subset the HSW hsw to only breeders, depending on hsw format
     if ('assignment' %in% colnames(df)) {
@@ -314,34 +315,24 @@ format_hsw_raw_ped <- function(
     colnames(df) <- c('rfid','generation','animalid','id','sex','dam_animalid','sire_animalid')
     df$wfu_generation <- NA
 
-    # convert all dam animal IDs to access IDs
-    df$dam <- sapply(df$dam_animalid, animalid_to_accessid)
+    # convert dam animal IDs based on HSW vs WFU format
+    df$dam <- sapply(df$dam_animalid, function(x) 
+        if (grepl('^(HS|WHS)', x)) {
+            swid_to_accessid(x, wfu_map)
+        } else if (grepl('^G', x)) {
+            animalid_to_accessid(x)
+        } else {NA}
+    )
 
-    # convert male animal IDs based on HSW vs WFU format
-    for (i in 1:nrow(df)) {
+    # convert sire animal IDs based on HSW vs WFU format
+    df$sire <- sapply(df$sire_animalid, function(x) 
+        if (grepl('^(HS|WHS)', x)) {
+            swid_to_accessid(x, wfu_map)
+        } else if (grepl('^G', x)) {
+            animalid_to_accessid(x)
+        } else {NA}
+    )
 
-        animal_id <- df$sire_animalid[i]
-        if (grepl('^G', animal_id)) {
-            # process HSW animal IDs as normal
-            df$sire[i] <- animalid_to_accessid(animal_id)
-        } else if (grepl('^(HS|WHS)', animal_id)) {
-            # use wfu_map for WFU IDs
-            if (!is.null(wfu_map)) {
-                df$sire[i] <- animalid_to_accessid(animal_id, wfu_sl = wfu_map)
-            }
-        } else if (grepl('^[0-9]+$', animal_id)) {
-            # access IDs remain unchanged
-            df$sire[i] <- animal_id
-        } else if (is.na(animal_id)) {
-            df$sire[i] <- '?'
-        } else {
-            if (is.null(wfu_map)) {
-                cat('Error: Cannot read animal ID', animal_id, 'from row', i, '\n')
-            } else {
-                df$sire[i] <- wfu_map[wfu_map[['sw.id']]==animal_id,]$id
-            }
-        }
-    }
     col_order <- c('id','dam','sire','sex','generation','wfu_generation','rfid',
                    'animalid','dam_animalid','sire_animalid')
     df <- df[,col_order]
@@ -370,8 +361,7 @@ format_hsw_raw_ped <- function(
 
     if (return_df) {
         return(df)    
-    } 
-    
+    }  
 }
 
 
