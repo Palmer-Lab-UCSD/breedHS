@@ -285,7 +285,7 @@ wfu_raw_to_hsw <- function(
 
 # function to produce a breedail pedigree from breeders assignments
 format_hsw_raw_ped <- function(
-    df,                # an HSW assignment sheet (csv) w/ breeder assignments
+    df,                # an HSW raw pedigree (csv) w/ an assignment column including 'hsw_breeders' assignments
     wfu_map=NULL,      # the WFU shipment list (csv) with WFU access IDs and animal IDs (SW IDs)
     outdir=NULL,       # directory in which to save the formatted pedigree file
     return_df=FALSE)   # whether to return the final df to the R console
@@ -296,7 +296,12 @@ format_hsw_raw_ped <- function(
         df <- df
     }
     hsw_gen <- df$generation[1]
-    wfu_map <- read.csv(wfu_map)
+    if (!is.null(wfu_map)) {
+        if(class(wfu_map) == 'character') {
+            wfu_map <- read.csv(wfu_map)
+        }
+    }
+    
 
     # subset the HSW hsw to only breeders, depending on hsw format
     if ('assignment' %in% colnames(df)) {
@@ -880,4 +885,65 @@ next_best_pairs <- function(
         avail_pairs <- avail_pairs[1:6,]
     }
     return(avail_pairs)
+}
+
+# function to plot a histogram of pairwise kinship coefficients
+plot_k_hist <- function(
+    kinship, # path to the pairwise kinship or breederpair csv, or a corresponding R dataframe
+    pop, # the population name, eg 'hsw' or 'wfu'
+    gen, # the generation number
+    sample = c('all','breederpairs'), # which sample of rats (ie which file type) to process
+    out_dir # output directory path
+) {
+    library(viridis)
+
+    if (sample == 'all') {
+        outfile <- file.path(out_dir, paste0('hsw_gen', gen, '_k_hist_all.png'))
+        binsize = 60
+    } else if (sample == 'breederpairs') {
+        outfile <- file.path(out_dir, paste0('hsw_gen', gen, '_k_hist_breeders.png'))
+        binsize = 30
+    }
+    if (class(kinship) == 'character') {
+        kinship <- read.csv(kinship)
+    } else if (class(kinship) == 'data.frame') {
+        kinship <- kinship
+    }
+    
+    kinship <- as.numeric(kinship$kinship)
+    mean_k <- mean(kinship) 
+    quantiles <- quantile(kinship, probs = seq(0, 1, 0.25))
+
+    # plot breederpairs kinship
+    png(outfile, width=7, height=6, units='in', res=300)
+    par(mar=c(4,4,3.6,1), oma=c(0.4,0.4,0,0))
+    hist(kinship, binsize, col=viridis(1,0.6,0.4), xlab='kinship (K)', main='')
+    if (sample == 'all') {
+        title_str <- paste('(all', length(kinship), 'possible pairs)')
+    } else if (sample == 'breederpairs') {
+        title_str <- paste(paste0('(', length(kinship)), 'breeder pairs)')
+    }
+    title(main = paste(toupper(pop), paste0('gen', gen), 'pairwise kinship'), line=2.2)
+    title(main = title_str, line=1)
+
+    # add mean K and 25% quantile lines
+    abline(v=mean_k, lwd=2, col='red')
+    for (q in 2:4) {
+        abline(v=quantiles[q], lty=3)
+        if (q==3) {
+            abline(v=quantiles[q], lty=1, lwd=2)
+        }
+    }
+
+    # add quantiles legend
+    legend('topright', legend=c(paste('max:', round(quantiles[5], 3)),
+                                paste('75%:', round(quantiles[4], 3)),
+                                paste('mean:', round(mean_k, 3)),
+                                paste('median:', round(quantiles[3], 3)),
+                                paste('25%:', round(quantiles[2], 3)),
+                                paste('min:', round(quantiles[1], 3))
+                                ), 
+        lty=c(0,3,1,1,3,0), col=c(1,1,'red',1,1,1), lwd=c(1,1,2,2,1,1), cex=0.9, bty='n')
+    dev.off()
+    cat('Kinship histogram saved to', outfile, '\n')
 }
