@@ -119,6 +119,7 @@ find.ped.errors <- function(first_gen,  # the desired starting generation
         }
 
         cat('Generation', paste0(i, ':'), length(tmp), 'parent IDs were not found in generation', i-1, '\n')
+        cat('\t', sort(tmp), '\n')
       }
 
       ## check for missing values
@@ -182,11 +183,11 @@ find.ped.errors <- function(first_gen,  # the desired starting generation
             cat(outfile3, '\n')
           }
       }
-      if (return_ids) {
-          # return(list(missing_ids = missing_ids,
-          #             empty_parents = empty_parents))
-          return(empty_parents)
-      }
+      # if (return_ids) {
+      #     return(list(missing_ids = missing_ids,
+      #                 empty_parents = empty_parents))
+      #     return(empty_parents)
+      # }
   }
 }
 
@@ -243,7 +244,8 @@ format.pedigree <- function(first_gen,  # the desired starting generation
         # check that parents are in the previous generation
         tmp <- check.ped(ped.tmp , ped.prev)   
         if (length(tmp) > 0){
-          print(paste('Generation', paste0(i, ':'), length(tmp), 'parent IDs were not found in generation', i-1))
+          cat('Generation', paste0(i, ':'), length(tmp), 'parent IDs were not found in generation', i-1, '\n')
+          cat('\t', sort(tmp), '\n')
         }
       }
       
@@ -1146,8 +1148,6 @@ translate.merged.ids <- function(
       id_map <- id_map$id.map
     } 
     
-    print(dim(df))
-    print(dim(id_map))
     for (i in 1:length(cols)) {
         col <- cols[i]
         from_id <- from[i]

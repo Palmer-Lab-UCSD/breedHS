@@ -2,7 +2,7 @@
 
 This repository contains R source code to select breeders in an
 outbred line so that inbreeding in the offspring is
-minimized. This repository is forked from [breedail](https://github.com/pcarbo/breedail),
+minimized. This repository was cloned from [breedail](https://github.com/pcarbo/breedail),
 which was originally developed for advanced intercross lines in mice, and is currently
 used by the [HS West](https://ratgenes.org/) colony, managed by 
 [Dr. Abraham Palmer's lab](https://palmerlab.org/) at UC San Diego, for breeding 
