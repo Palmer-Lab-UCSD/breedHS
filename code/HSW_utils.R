@@ -578,7 +578,7 @@ count_breeder_pairs <- function(
         assignments <- assignments
     }
     if (class(breederpairs)=='character'){
-        all_pairs <- read.csv(breederpair, na.str=c('','NA','NaN','nan'))    
+        breederpairs <- read.csv(breederpairs, na.str=c('','NA','NaN','nan'))    
     } else {
         breederpairs <- breederpairs
     }
@@ -844,47 +844,133 @@ add_to_breeder_file <- function(
     return(all_pairs)
 }
 
-# get up to 6 next-best breeder pairings for a given animal ID
-next_best_pairs <- function(
-    id, # animalid of the breeder that needs a new mate pairing
-    kinship, # pairwise kinship df or path to csv file
-    available_ids=NULL, # vector of animalids, or txt file of animalids
-    available_ids_file=NULL) # path to text file of animalids, one per line, no header
-{
-    if (class(kinship) == 'character') {
-        assignments <- read.csv(assignments, na.str=(c('','NA','NaN','nan')))
-    } else if (class(kinship) == 'data.frame') {
-        kinship <- kinship
+# get n next-best replacements for a given set of animal IDs, or the n best pairings from all available IDs
+best_pairs <- function(
+    pairs,  # breederpair file
+    kinship, # kinship for all possible pairs
+    avail_ids, # vector or path to animalids still available for pairing
+    n_best = 4, # the number of next-best IDs to return per ID that needs replacing
+    ids_to_replace=NULL, # vector or path
+    outdir
+) {
+    if (class(pairs)=='character') {
+        pairs <- read.csv(pairs)
     }
-    if (!is.null(available_ids)) {
-        available_ids <- available_ids
-    } 
-    if (!is.null(available_ids_file)) {
-        available_ids <- readLines(available_ids_file)
+    if (class(kinship)=='character') {
+        kinship <- read.csv(kinship, colClasses=c('dam_fam'='character', 'sire_fam'='character'))
     }
+    if (length(avail_ids)==1 && file.exists(avail_ids)) {
+        avail_ids <- readLines(avail_ids)
+    }
+    if (!is.null(ids_to_replace)) {
+        if (length(ids_to_replace)==1 && file.exists(ids_to_replace)) {
+            ids_to_replace <- readLines(ids_to_replace)
+        }
+    }
+    datestamp <- format(Sys.time(),'%Y%m%d')
 
-    dam <- ifelse(id %in% kinship$dam, TRUE, FALSE)
-    sire <- ifelse(id %in% kinship$sire, TRUE, FALSE)
-    if (sum(c(dam, sire)) == 0){
-        stop(paste('ID', id, 'is not in the kinship matrix'))
-    }
+    # get the breederpair combination for each possible pairing
+    kinship$combo <- paste0(kinship$dam_fam, '-', kinship$sire_fam)
 
-    if (dam) {
-        avail_pairs <- kinship[kinship$dam == id,]
+    # get breederpair for each paired dam or sire
+    paired_dam_fam <- sapply(pairs$dam_animalid, function(x) sub('.*_B(\\d+)_.*', '\\1', x))
+    paired_sire_fam <- sapply(pairs$sire_animalid, function(x) sub('.*_B(\\d+)_.*', '\\1', x))
+
+    # breederpair combo for all pairs
+    paired_combos <- paste0(paired_dam_fam, '-', paired_sire_fam)
+
+    # remove paired combos from the total pool of combos
+    kinship <- kinship[!kinship$combo %in% paired_combos,]
+
+    # get bp combos for all rats still available for pairing
+    avail_int <- sapply(strsplit(avail_ids, "_"), tail, 1)
+    avail_sex <- sapply(avail_int, function(x) ifelse(as.integer(x) > 8, 'F', 'M'))
+
+    avail_f <- avail_ids[which(avail_sex=='F')]
+    avail_m <- avail_ids[which(avail_sex=='M')]
+
+    avail_f_fam <- sapply(avail_f, function(x) sub('.*_B(\\d+)_.*', '\\1', x))
+    avail_m_fam <- sapply(avail_m, function(x) sub('.*_B(\\d+)_.*', '\\1', x))
+
+    avail_combos <- (expand.grid(avail_f_fam, avail_m_fam))
+    avail_combos <- paste0(avail_combos[,1], '-', avail_combos[,2])
+
+    # kinship of all possible combos still available to pair
+    kin_out <- kinship[kinship$combo %in% avail_combos,]
+    kin_out <- kin_out[,3:(ncol(kin_out)-1)] # drop specific animal IDs
+    outfile <- file.path(outdir, paste0('kinship_all_avail_fams_',datestamp,'.csv'))
+    write.csv(kin_out, outfile, row.names=F, quote=F, na='')
+    cat('\nKinship for all available pairings written to', outfile, '\n')
+
+    # list the potential replacements for each ID to be replaced
+    if (!is.null(ids_to_replace)) {
+        
+        replacements_list <- list()
+        for (id in ids_to_replace) {
+
+            id_int <- tail(strsplit(id[1], "_")[[1]], 1)
+            id_sex <- ifelse(as.integer(id_int) > 8, 'F', 'M')
+            
+            # identify the proposed mate for the ID that needs replacing
+            id_col <- ifelse(id_sex=='F', 'dam_animalid', 'sire_animalid')
+            mate_col <- ifelse(id_sex=='F', 'sire_animalid', 'dam_animalid')
+            mate_id <- pairs[pairs[[id_col]]==id,][[mate_col]]
+            mate_sex <- ifelse(id_sex=='F', 'M', 'F')
+            mate_fam <- sub('.*_B(\\d+)_.*', '\\1', mate_id)
+            mate_combo <- ifelse(mate_sex=='F', paste0(mate_fam,'-'), paste0('-',mate_fam))
+
+            # get the list of IDs that can replace the input ID
+            k_column <- ifelse(mate_sex=='F', 'dam_fam', 'sire_fam')
+            pair_column <- ifelse(mate_sex=='F', 'sire_fam','dam_fam')
+            k_replacements <- kin_out[kin_out[[k_column]]==mate_fam,]
+            k_replacements <- k_replacements[order(k_replacements$kinship),]
+            if (nrow(k_replacements) > n_best) {
+                k_replacements <- k_replacements[1:n_best,]
+            }
+
+            replacements <- data.frame(
+                animalid = rep(mate_id, n_best),
+                orig_pair = id,
+                use_fam = k_replacements[[pair_column]],
+                kinship = k_replacements$kinship,
+                replaced_with = NA,
+                notes = NA)
+            
+            replacements_list[[id]] <- replacements
+        } # end of ID loop  
+
+        # combine replacement lists for all IDs that need replacing 
+        replacements <- do.call(rbind, replacements_list)
+        outfile <- file.path(outdir, paste0('replacement_pairs_n_',n_best,'_',datestamp,'.csv'))
+        write.csv(replacements, outfile, row.names=F, quote=F, na='')
+        cat('\nBest replacement pairings written to', outfile, '\n')
+
     } else {
-        avail_pairs <- kinship[kinship$sire == id,]
-    }
-
-    avail_pairs <- avail_pairs[order(avail_pairs$kinship),]
+        
+        # find the n_best lowest-kinship pairings that are available
+        kin_best <- kin_out[order(kin_out$kinship),]
+        new_pairs <- data.frame()
+        used_dams <- c()
+        used_sires <- c()
     
-    if (!is.null(available_ids)) {
-        avail_pairs <- avail_pairs[avail_pairs$dam %in% available_ids | avail_pairs$sire %in% available_ids,]
-    }
+        for (i in 1:nrow(kin_best)) {
+            row <- kin_best[i, , drop=F]
+            if (!row$dam_fam %in% used_dams && !row$sire_fam %in% used_sires) {
+                new_pairs <- rbind(new_pairs, row)
+                used_dams <- c(used_dams, row$dam_fam)
+                used_sires <- c(used_sires, row$sire_fam)
+                if (nrow(new_pairs) == n_best) break
+            }
+        }
+        new_pairs$paired_dam <- 'NONE'
+        new_pairs$paired_sire <- 'NONE'
+        new_pairs$comments <- NA
 
-    if (nrow(avail_pairs) > 6) {
-        avail_pairs <- avail_pairs[1:6,]
+        # save best new pairs
+        outfile <- file.path(outdir, paste0('new_pairs_n_',n_best,'_',datestamp,'.csv'))
+        write.csv(new_pairs, outfile, row.names=F, quote=F, na='')
+        cat('\nTop', n_best, 'new pairings written to', outfile, '\n')
     }
-    return(avail_pairs)
 }
 
 # function to plot a histogram of pairwise kinship coefficients
