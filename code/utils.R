@@ -21,7 +21,8 @@ find.ped.errors <- function(first_gen,  # the desired starting generation
                             data_dir,   # the directory housing pedigree files
                             file_stem,  # the stem name shared by all pedigree files
                             write_file=TRUE,
-                            return_ids=TRUE)
+                            return_ids=TRUE,
+                            print_ids=TRUE)
 {
 
   # empty element to hold the eventual pedigree 
@@ -118,7 +119,9 @@ find.ped.errors <- function(first_gen,  # the desired starting generation
         }
 
         cat('Generation', paste0(i, ':'), length(tmp), 'parent IDs were not found in generation', i-1, '\n')
-        cat('\t', sort(tmp), '\n')
+        if (print_ids) {
+          cat('\t', sort(tmp), '\n')
+        }
       }
 
       ## check for missing values
@@ -182,11 +185,11 @@ find.ped.errors <- function(first_gen,  # the desired starting generation
             cat(outfile3, '\n')
           }
       }
-      # if (return_ids) {
-      #     return(list(missing_ids = missing_ids,
-      #                 empty_parents = empty_parents))
-      #     return(empty_parents)
-      # }
+      if (return_ids) {
+          return(list(missing_ids = missing_ids,
+                      empty_parents = empty_parents))
+          return(empty_parents)
+      }
   }
 }
 
@@ -1159,8 +1162,8 @@ translate.merged.ids <- function(
     
     from_str <- paste0(unique(from), collapse='_')
     to_str <- paste0(unique(to), collapse='_')
-    timestamp <- format(Sys.time(),'%Y%m%d-%H:%M:%S')
-    outfile <- paste0(basefile, '_translated_', from_str, '_to_', to_str, '_', timestamp, '.csv')
+    datestamp <- format(Sys.time(),'%Y%m%d')
+    outfile <- paste0(basefile, '_translated_', from_str, '_to_', to_str, '_', datestamp, '.csv')
     write.csv(df, outfile, row.names=F, quote=F, na='')
     cat('Translated file saved to', outfile, '\n')
 
