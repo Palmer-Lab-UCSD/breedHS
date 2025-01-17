@@ -47,18 +47,17 @@ find.ped.errors <- function(first_gen,  # the desired starting generation
     }
 
     # get the file name for the current generation
-    file.name <- file.path(data_dir, paste0(file_stem, i, ".csv"))
+    file.name <- file.path(data_dir, paste0(file_stem, i, '.csv'))
 
     if (!file.exists(file.name)) {
         gen_nchar <- nchar(i)
         n_zeros <- last_nchar - gen_nchar
         i_str <- paste0(rep('0', n_zeros), i)
-        file.name <- file.path(data_dir, paste0(file_stem, i_str, ".csv"))
+        file.name <- file.path(data_dir, paste0(file_stem, i_str, '.csv'))
     }
 
     if (!file.exists(file.name)) {
-        print(paste('Cannot find a pedigree file for generation', i, 
-                   'at', file.name))
+        cat('Cannot find a pedigree file for generation', i, 'at', file.name, '\n')
     }
     
     ## read in the pedigree for a given generation
@@ -138,7 +137,7 @@ find.ped.errors <- function(first_gen,  # the desired starting generation
   kin_no_parents <- do.call(rbind, kin_no_parents)
 
   if ((is.null(missing_parents)) & (length(empty_parents == 0))){
-      print('No errors found in the pedigree')
+      cat('No errors found in the pedigree \n')
   } else {
       ## write missing parents to a file for investigation
       if (write_file) {
@@ -219,8 +218,7 @@ format.pedigree <- function(first_gen,  # the desired starting generation
     }
 
     if (!file.exists(file.name)) {
-        print(paste('Cannot find a pedigree file for generation', i, 
-                   'at', file.name))
+        cat('Cannot find a pedigree file for generation', i, 'at', file.name, '\n')
     }
 
     ## read in the pedigree for a given generation
@@ -329,8 +327,8 @@ select.breeders <- function(first_gen,              # first generation of the pe
     outfile <- file.path(out_dir, paste0('breedpairs_F', last_gen, '_n1_', 
                                           sibs, '_', timestamp, '.csv'))
     write.csv(first.breeders, outfile, quote=F, row.names=F)
-    print(paste('Successfully paired', nrow(first.breeders), 'breeder pairs'))
-    print(paste('Pairing file written to', outfile))
+    cat('Successfully paired', nrow(first.breeders), 'breeder pairs \n')
+    cat('Pairing file written to', outfile, '\n')
 
     return(list(pairs = first.breeders, file = outfile))
   }
@@ -365,8 +363,8 @@ select.breeders <- function(first_gen,              # first generation of the pe
     outfile <- file.path(out_dir, paste0('breedpairs_F', last_gen, '_n2_', 
                                           sibs, '_', timestamp, '.csv'))
     write.csv(breeders,outfile, quote=F, row.names=F)
-    print(paste('Successfully paired', nrow(breeders), 'breeder pairs'))
-    print(paste('Pairing file written to', outfile))
+    cat('Successfully paired', nrow(breeders), 'breeder pairs \n')
+    cat('Pairing file written to', outfile, '\n')
 
     return(list(pairs = breeders, file = outfile))
   }
@@ -410,8 +408,8 @@ select.breeders <- function(first_gen,              # first generation of the pe
     outfile <- file.path(out_dir, paste0('breedpairs_F', last_gen, '_n', n_rounds, 
                                           '_', sibs, '_', timestamp, '.csv'))
     write.csv(all.breeders, outfile, quote=F, row.names=F)
-    print(paste('Successfully paired', nrow(all.breeders), 'breeder pairs'))
-    print(paste('Pairing file written to', outfile))
+    cat('Successfully paired', nrow(breeders), 'breeder pairs \n')
+    cat('Pairing file written to', outfile, '\n')
     return(list(pairs = all.breeders, file = outfile))
   }
 }
@@ -778,8 +776,7 @@ format.pedigree.for.merge <- function(
         }
     
         if (!file.exists(file.name)) {
-            print(paste('Cannot find a pedigree file for generation', i, 
-                       'at', file.name))
+            cat('Cannot find a pedigree file for generation', i, 'at', file.name, '\n')
         }
         
         ## read in the pedigree for a given generation
@@ -975,7 +972,7 @@ merge.pedigrees <- function(
     # ensure that all generations are present
     check <- sum(names(merged_ped) != receiving_all_gens)
     if (check > 0) {
-        print(paste('Error: Not all', receiving_pop, 'generations were included in the merged pedigree!'))
+        cat('Error: Not all', receiving_pop, 'generations were included in the merged pedigree! \n')
     } else {
 
         # order each generation by ID, then assign new IDs to enable kinship matrix construction
@@ -1046,8 +1043,8 @@ merge.pedigrees <- function(
           outstr <- paste0(out_stem, '_0', min_gen, '_', max_gen, '_complete_ped.csv')
           outfile <- file.path(out_dir, outstr)
           write.csv(ped_df, outfile, row.names=F, quote=F, na='?')
-          print(paste('Merged pedigree written to', outfile))
-          print(paste('Individual merged pedigree files saved in', paste0(out_dir,'/')))
+          cat('Merged pedigree written to', outfile, '\n')
+          cat('Individual merged pedigree files saved in', paste0(out_dir,'/'), '\n')
           
           # write an ID map for the merged pedigree
           id_map <- map.merged.ids(
@@ -1100,8 +1097,7 @@ write.complete.ped <- function(
         }
     
         if (!file.exists(file.name)) {
-            print(paste('Cannot find a pedigree file for generation', i, 
-                       'at', file.name))
+            cat('Cannot find a pedigree file for generation', i, 'at', file.name, '\n')
         }
         
         ## read in the pedigree for a given generation
@@ -1117,7 +1113,7 @@ write.complete.ped <- function(
       outfile <- file.path(data_dir, paste0(file_stem, 
                           '_0', first_gen, '_', last_gen, '_complete_ped.csv'))
       write.csv(ped, outfile, row.names=F, quote=F, na='?')
-      print(paste('Complete pedigree saved to', outfile))
+      cat('Complete pedigree saved to', outfile, '\n')
     }
     return(ped)
 }
@@ -1166,7 +1162,7 @@ translate.merged.ids <- function(
     timestamp <- format(Sys.time(),'%Y%m%d-%H:%M:%S')
     outfile <- paste0(basefile, '_translated_', from_str, '_to_', to_str, '_', timestamp, '.csv')
     write.csv(df, outfile, row.names=F, quote=F, na='')
-    print(paste('Translated file saved to', outfile))
+    cat('Translated file saved to', outfile, '\n')
 
     return(list(pairs = df, file = outfile))
 }
@@ -1221,7 +1217,7 @@ map.merged.ids <- function(
     filename <- paste0(merged_stem, '_id_map.csv')
     outfile <- file.path(out_dir, filename)
     write.csv(id_map, outfile, row.names=F, quote=F, na='')
-    print(paste('ID map written to', outfile))
+    cat('ID map written to', outfile, '\n')
     return(id_map)
 }
 
@@ -1285,6 +1281,9 @@ current.kinship <- function(df, # colony df with ALL HSW rats
     m_pairs <- rep(all_males, each = n_females)
 
     all_pairs <- data.frame(dam = f_pairs, sire = m_pairs)
+    all_pairs$dam_fam <- sapply(all_pairs$dam, function(x) sub('.*_B(\\d+)_.*', '\\1', x))
+    all_pairs$sire_fam <- sapply(all_pairs$sire, function(x) sub('.*_B(\\d+)_.*', '\\1', x))
+
     for (i in 1:nrow(all_pairs)) {
         dam <- all_pairs$dam[i]
         sire <- all_pairs$sire[i]
@@ -1296,108 +1295,11 @@ current.kinship <- function(df, # colony df with ALL HSW rats
     kstr <- paste0(file_stem, '_gen', last_gen, '_kinship_matrix.csv')
     kfile <- file.path(data_dir, kstr)
     write.csv(k_use, kfile, row.names=T, quote=F, na='')
-    print(paste('Kinship matrix saved to', kfile))
+    cat('Kinship matrix saved to', kfile, '\n')
     pairstr <- paste0(file_stem, '_gen', last_gen, '_kinship_all_pairings.csv')
     pairfile <- file.path(data_dir, pairstr)
     write.csv(all_pairs, pairfile, row.names=F, quote=F, na='')
-    print(paste('Kinship pairings saved to', pairfile))
+    cat('Kinship pairings saved to', pairfile, '\n')
 
     return(list(k = k_use, pairs = all_pairs))
 }
-
-# find alternative pairing possibilities for unpaired rats
-get.alternative.pairings <- function(
-    all_kinship,        # kinship pairings file
-    paired_breeders,    # breeder file 
-    breederpair_counts) # output from count_breeder_pairs()
-
-{
-    if (class(all_kinship) == 'character') {
-        k_pairs <- read.csv(all_kinship)
-    } else if (class(all_kinship) == 'data.frame') {
-        k_pairs <- all_kinship
-    }
-    if (class(paired_breeders) == 'character') {
-        pairs <- read.csv(paired_breeders)
-    } else if (class(paired_breeders) == 'data.frame') {
-      pairs <- paired_breeders
-    }
-    bp_counts <- breederpair_counts   
-
-    # get the previous generation's breederpair from which each dam or sire was derived
-    k_pairs$dam_breederpair <- as.numeric(sub('.*_B(\\d+)_.*', '\\1', k_pairs$dam))
-    k_pairs$sire_breederpair <- as.numeric(sub('.*_B(\\d+)_.*', '\\1', k_pairs$sire))
-    k_pairs$breeder_combo <- paste0(k_pairs$dam_breederpair, '-', k_pairs$sire_breederpair)
-    pairs$dam_breederpair <- as.numeric(sub('.*_B(\\d+)_.*', '\\1', pairs$dam_animalid))
-    pairs$sire_breederpair <- as.numeric(sub('.*_B(\\d+)_.*', '\\1', pairs$sire_animalid))
-    pairs$breeder_combo <- paste0(pairs$dam_breederpair, '-', pairs$sire_breederpair)
-
-    # get the kinship of all possible pairings for IDs remaining to be paired
-    unpaired_ids <- bp_counts$assigned.but.not.paired
-    unpaired_ids <- unpaired_ids[!is.na(unpaired_ids)]
-    unpaired_m <- unpaired_ids[unpaired_ids %in% k_pairs$sire]
-    unpaired_f <- unpaired_ids[unpaired_ids %in% k_pairs$dam]
-    try_pairs <- k_pairs[(k_pairs$dam %in% unpaired_f) & (k_pairs$sire %in% unpaired_m),]
-    try_pairs$combo_already_paired <- ifelse(try_pairs$breeder_combo %in% pairs$breeder_combo, 1, 0)
-
-    dams <- unique(unpaired_ids[unpaired_ids %in% try_pairs$dam])
-    sires <- unique(unpaired_ids[unpaired_ids %in% try_pairs$sire])
-
-    # create a kinship matrix for all potential new pairs
-    k_use <- matrix(NA, nrow = length(dams), ncol = length(sires), dimnames = list(dams, sires))
-    for (i in 1:nrow(try_pairs)) {
-        dam <- try_pairs$dam[i]
-        sire <- try_pairs$sire[i]
-        kinship <- try_pairs$kinship[i]
-        k_use[dam, sire] <- kinship
-    }
-
-    # generate all permutations of pairings
-    all_pairings <- expand.grid(dam = dams, sire = sires)
-    pairing_sets <- combn(1:nrow(all_pairings), length(dams), simplify = FALSE)
-
-    # keep only pairing sets that allow one pairing per individual
-    check_pairing_sets <- lapply(pairing_sets, function(indices) {
-      pairings <- all_pairings[indices, ]
-      # check for unique dams and sires in each set
-      if(length(unique(pairings$dam)) == length(dams) && length(unique(pairings$sire)) == length(sires)) {
-        return(pairings)
-      } else {
-        return(NULL)
-      }
-    } # end of function(indices)
-    ) # end of lapply()
-    
-    # remove NULL entries
-    valid_pairing_sets <- Filter(Negate(is.null), check_pairing_sets)
-
-    # get breederpair combos of all valid pairing sets 
-    pair_dams <- lapply(valid_pairing_sets, function(pairing) 
-        unlist(as.numeric(sub('.*_B(\\d+)_.*', '\\1', pairing$dam))))
-    pair_sires <- lapply(valid_pairing_sets, function(pairing) 
-        unlist(as.numeric(sub('.*_B(\\d+)_.*', '\\1', pairing$sire))))
-    pair_breeder_combo <- mapply(function(x, y) paste(x, y, sep = "-"), unlist(pair_dams), unlist(pair_sires))
-    
-    # split pair_breeder_combo into sublists with the same number of pairings per pairings set
-    split_into_chunks <- function(vec, chunk_size) {
-        split(vec, ceiling(seq_along(vec) / chunk_size))}
-    pair_breeder_combo <- split_into_chunks(pair_breeder_combo, length(dams))
-    
-    # subset to only breederpair combos that have not already been paired
-    keep_pairs <- sapply(pair_breeder_combo, function(x) !any(x %in% pairs$breeder_combo))
-    valid_pairing_sets <- valid_pairing_sets[keep_pairs]
-    
-    # calculate the mean kinship for each valid set, retain the one with the lowest mean kinship
-    mean_kinship <- function(pairings) {
-      mean(sapply(1:nrow(pairings), function(i) k_use[pairings[i, 1], pairings[i, 2]]))}
-    mean_kinships <- sapply(valid_pairing_sets, mean_kinship)
-    best_pairing_set <- valid_pairing_sets[[which.min(mean_kinships)]]
-    for (i in 1:nrow(best_pairing_set)) {
-        dam <- best_pairing_set$dam[i]
-        sire <- best_pairing_set$sire[i]
-        best_pairing_set$kinship[i] <- try_pairs[(try_pairs$dam==dam) & (try_pairs$sire==sire),]$kinship
-    }
-
-    return(list(all.combos = try_pairs, best.pairs = best_pairing_set))
-}
-
