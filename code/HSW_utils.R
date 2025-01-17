@@ -311,7 +311,7 @@ format_hsw_raw_ped <- function(
     } else if ('hsw_breeders' %in% colnames(df)) {
         df <- df[df$hsw_breeders == 1,]
     } else {
-        print('Cannot identify an assignment or breeders column to subset')
+        cat('Cannot identify an assignment or breeders column to subset \n')
     }
 
     # format the HSW pedigree for breedail
@@ -394,7 +394,7 @@ wfu_into_hsw_gen <- function(hsw_raw,   # an HSW assignment sheet (csv) w/ breed
     } else if ('hsw_breeders' %in% colnames(hsw)) {
         hsw <- hsw[hsw$hsw_breeders == 1,]
     } else {
-        print('Cannot identify an assignment or breeders column to subset')
+        cat('Cannot identify an assignment or breeders column to subset \n')
     }
 
     # format the HSW hsw for breedail
@@ -560,7 +560,7 @@ create_breeder_file <- function(
         outfile <- paste0('hsw_gen', gen, '_', gen+1, '_breeders_proposed_', datestamp, '.csv')
         outfile <- file.path(outdir, outfile)
         write.csv(pairs, outfile, row.names=F, quote=F, na='')
-        print(paste('Breeder file written to', outfile))
+        cat('Breeder file written to', outfile, '\n')
     }
     return(list(pairs = pairs, file = outfile))
 }
@@ -838,14 +838,14 @@ add_to_breeder_file <- function(
         write.csv(all_pairs, outfile, row.names=F, quote=F, na='')
         write.csv(all_pairs, colony_file, row.names=F, quote=F, na='')
         write.csv(all_pairs_slim, slimfile, row.names=F, quote=F, na='')
-        print(paste('Updated breeder file written to', outfile))
+        cat('Updated breeder file written to', outfile, '\n')
     }
 
     return(all_pairs)
 }
 
 # get n next-best replacements for a given set of animal IDs, or the n best pairings from all available IDs
-best_pairs <- function(
+best_alt_pairs <- function(
     pairs,  # breederpair file
     kinship, # kinship for all possible pairs
     avail_ids, # vector or path to animalids still available for pairing
@@ -983,13 +983,6 @@ plot_k_hist <- function(
 ) {
     library(viridis)
 
-    if (sample == 'all') {
-        outfile <- file.path(out_dir, paste0('hsw_gen', gen, '_k_hist_all.png'))
-        binsize = 60
-    } else if (sample == 'breederpairs') {
-        outfile <- file.path(out_dir, paste0('hsw_gen', gen, '_k_hist_breeders.png'))
-        binsize = 30
-    }
     if (class(kinship) == 'character') {
         kinship <- read.csv(kinship)
     } else if (class(kinship) == 'data.frame') {
@@ -999,6 +992,14 @@ plot_k_hist <- function(
     kinship <- as.numeric(kinship$kinship)
     mean_k <- mean(kinship) 
     quantiles <- quantile(kinship, probs = seq(0, 1, 0.25))
+
+    if (sample == 'all') {
+        outfile <- file.path(out_dir, paste0('hsw_gen', gen, '_k_hist_all.png'))
+        binsize = 60
+    } else if (sample == 'breederpairs') {
+        outfile <- file.path(out_dir, paste0('hsw_gen', gen, '_k_hist_n', length(kinship,)'_breeders.png'))
+        binsize = 30
+    }
 
     # plot breederpairs kinship
     png(outfile, width=7, height=6, units='in', res=300)
