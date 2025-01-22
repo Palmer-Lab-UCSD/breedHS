@@ -288,9 +288,9 @@ select.breeders <- function(first_gen,              # first generation of the pe
                             data_dir,               # directory housing pedigree files
                             out_dir,                # the output directory in which to save results
                             file_stem,              # stem name for pedigree files
-                            n_rounds,               # number of rounds of breeder selection desired
                             one_per_sibship = TRUE) # whether one (T) or multiple breeders per sibship
 {
+  MAX_ROUNDS <- 10  # Maximum number of rounds to attempt
   
   # format pedigree files into one pedigree
   ped.out <- format.pedigree(first_gen, last_gen, data_dir, file_stem, print_errors=T)
@@ -316,25 +316,11 @@ select.breeders <- function(first_gen,              # first generation of the pe
     first.breeders <- find.mates(ped.prev,k.prev)
   }
 
-# note: breedail pedigree columns are ordered sire/dam
-# but find.mates outputs are ordered dam/sire
+  # note: breedail pedigree columns are ordered sire/dam
+  # but find.mates outputs are ordered dam/sire
   colnames(first.breeders) <- c('dam', 'sire', 'kinship')
   round.1 <- rep(1, nrow(first.breeders))
   round <- round.1
-  
-  if (n_rounds==1){
-    first.breeders <- as.data.frame(cbind(round, first.breeders))
-    first.breeders <- first.breeders[order(first.breeders$kinship),]
-
-    timestamp <- format(Sys.time(),'%Y%m%d-%H:%M:%S')
-    outfile <- file.path(out_dir, paste0('breedpairs_F', last_gen, '_n1_', 
-                                          sibs, '_', timestamp, '.csv'))
-    write.csv(first.breeders, outfile, quote=F, row.names=F)
-    cat('Successfully paired', nrow(first.breeders), 'breeder pairs \n')
-    cat('Pairing file written to', outfile, '\n')
-
-    return(list(pairs = first.breeders, file = outfile))
-  }
   
   ped.comb.out <- get.ped.comb(ped.prev, first.breeders)
   ped.comb <- ped.comb.out$ped.comb
@@ -342,53 +328,40 @@ select.breeders <- function(first_gen,              # first generation of the pe
   ped.next <- ped.comb.out$ped.next
   
   ## update kinship matrix ##
-  k.comb <- kinship.update(ped.prev , k.prev, ped.next)
+  k.comb <- kinship.update(ped.prev, k.prev, ped.next)
   pos.prev <- 1:dim(ped.prev)[1]
   pos.next <- dim(ped.prev)[1]+(1:dim(ped.next)[1])
   not.avail.idx <- ped.prev[,1] %in% c(ped.next[,2],ped.next[,3])
   not.avail.pos <- c(1:dim(ped.prev)[1])[not.avail.idx]
   
-  # second mate pairing
-  new.mates <- find.mates.given.pop(ped.comb, k.comb, pos.prev, pos.next, not.avail.pos, max.pairs=1)
-  breeders <- rbind(first.breeders, new.mates[,1:3])
-
-  if (!is.null(new.mates)){
-    round.2 <- rep(2, nrow(new.mates))
-  } else(round.2 <- NULL)
+  # second mate pairing (now using default max_pairs)
+  new.mates <- find.mates.given.pop(ped.comb, k.comb, pos.prev, pos.next, not.avail.pos)
   
-  if (n_rounds==2){
-    
-    round <- c(round.1, round.2)
-    breeders <- as.data.frame(cbind(round, breeders))
-    breeders <- breeders[order(breeders$kinship),]
-
-    timestamp <- format(Sys.time(),'%Y%m%d-%H:%M:%S')
-    outfile <- file.path(out_dir, paste0('breedpairs_F', last_gen, '_n2_', 
-                                          sibs, '_', timestamp, '.csv'))
-    write.csv(breeders,outfile, quote=F, row.names=F)
-    cat('Successfully paired', nrow(breeders), 'breeder pairs \n')
-    cat('Pairing file written to', outfile, '\n')
-
-    return(list(pairs = breeders, file = outfile))
+  # Initialize storage for all rounds
+  all.mates <- list()
+  round.numbers <- list()
+  
+  all.mates[[1]] <- first.breeders
+  round.numbers[[1]] <- round.1
+  
+  if (!is.null(new.mates)) {
+    all.mates[[2]] <- new.mates[,1:3]
+    round.numbers[[2]] <- rep(2, nrow(new.mates))
   }
   
-  else if (n_rounds > 2){
-    
-    round.i <- list()
-    all.mates <- list(first.breeders, new.mates[,1:3])
-    
-    for (i in 3:n_rounds){
+  # Try additional rounds (3 onwards)
+  for (i in 3:MAX_ROUNDS) {
+    tryCatch({
+      # Get combined pedigree for all previous rounds
+      all.breeders <- do.call(rbind, all.mates[1:(i-1)])
       
-      # dataframe of all breeder pairs so far
-      all.breeders <- do.call(rbind, all.mates[1:i-1])
-
       ped.comb.out <- get.ped.comb(ped.prev, all.breeders)
       ped.comb <- ped.comb.out$ped.comb
       ped.prev <- ped.comb.out$ped.prev
       ped.next <- ped.comb.out$ped.next
       
-      ## update kinship matrix 
-      k.comb <- kinship.update(ped.prev , k.prev, ped.next)
+      ## update kinship matrix
+      k.comb <- kinship.update(ped.prev, k.prev, ped.next)
       pos.prev <- 1:dim(ped.prev)[1]
       pos.next <- dim(ped.prev)[1]+(1:dim(ped.next)[1])
       not.avail.idx <- ped.prev[,1] %in% c(ped.next[,2],ped.next[,3])
@@ -396,26 +369,41 @@ select.breeders <- function(first_gen,              # first generation of the pe
       
       # next round of mate pairing
       new.mates <- find.mates.given.pop(ped.comb, k.comb, 
-                                        pos.prev, pos.next, not.avail.pos)
+                                      pos.prev, pos.next, not.avail.pos)
       
-      all.mates[[i]] <- new.mates[,1:3]
-      round.i[[i]] <- rep(i, nrow(new.mates))
-    }
+      if (!is.null(new.mates) && nrow(new.mates) > 0) {
+        all.mates[[i]] <- new.mates[,1:3]
+        round.numbers[[i]] <- rep(i, nrow(new.mates))
+      } else {
+        break
+      }
+      
+    }, error = function(e) {
+      cat(sprintf("Round %d: %s\n", i, conditionMessage(e)))
+    })
     
-    all.breeders <- do.call(rbind, all.mates)
-    round <- c(round.1, round.2, unlist(round.i))
-    all.breeders <- as.data.frame(cbind(round, all.breeders))
-    all.breeders <- all.breeders[order(all.breeders$kinship),]
-
-    timestamp <- format(Sys.time(),'%Y%m%d-%H:%M:%S')
-    outfile <- file.path(out_dir, paste0('breedpairs_F', last_gen, '_n', n_rounds, 
-                                          '_', sibs, '_', timestamp, '.csv'))
-    write.csv(all.breeders, outfile, quote=F, row.names=F)
-    cat('Successfully paired', nrow(breeders), 'breeder pairs \n')
-    cat('Pairing file written to', outfile, '\n')
-    return(list(pairs = all.breeders, file = outfile))
+    # If no new mates were found or an error occurred, stop trying new rounds
+    if (is.null(all.mates[[i]])) {
+      break
+    }
   }
+  
+  # Process all successful rounds
+  all.breeders <- do.call(rbind, all.mates)
+  round <- unlist(round.numbers)
+  all.breeders <- as.data.frame(cbind(round, all.breeders))
+  all.breeders <- all.breeders[order(all.breeders$kinship),]
+  
+  timestamp <- format(Sys.time(),'%Y%m%d-%H:%M:%S')
+  outfile <- file.path(out_dir, paste0('breedpairs_F', last_gen, '_n', length(all.mates), 
+                                      '_', sibs, '_', timestamp, '.csv'))
+  write.csv(all.breeders, outfile, quote=F, row.names=F)
+  cat('Successfully paired', nrow(all.breeders), 'breeder pairs \n')
+  cat('Pairing file written to', outfile, '\n')
+  
+  return(list(pairs = all.breeders, file = outfile))
 }
+
 
 # simulate breeding between mate pairs
 mate.breeders <- function(breedpairs,   # matrix output by select.breeders, or path to file

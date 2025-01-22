@@ -835,6 +835,7 @@ best_alt_pairs <- function(
     n_best = 4, # the number of next-best IDs to return per ID that needs replacing
     ids_to_replace=NULL, # vector or path
     ids_to_pair=NULL, # vector or path
+    k_all=FALSE, # whether to return a kinship matrix for all available rats
     outdir
 ) {
     if (class(pairs)=='character') {
@@ -888,9 +889,11 @@ best_alt_pairs <- function(
     # kinship of all possible combos still available to pair
     kin_out <- kinship[kinship$combo %in% avail_combos,]
     kin_out <- kin_out[,3:(ncol(kin_out)-1)] # drop specific animal IDs
-    outfile <- file.path(outdir, paste0('kinship_all_avail_fams_',datestamp,'.csv'))
-    write.csv(kin_out, outfile, row.names=F, quote=F, na='')
-    cat('\nKinship for all available pairings written to', outfile, '\n')
+    if (k_all) {
+        outfile <- file.path(outdir, paste0('kinship_all_avail_fams_',datestamp,'.csv'))
+        write.csv(kin_out, outfile, row.names=F, quote=F, na='')
+        cat('\nKinship for all available pairings written to', outfile, '\n')
+    }
 
     # identify best replacements for each ID to be replaced
     if (!is.null(ids_to_replace)) {
@@ -955,7 +958,7 @@ best_alt_pairs <- function(
         # combine replacement lists for all IDs that need replacing 
         replacements <- do.call(rbind, replacements_list)
         out$replacements <- replacements
-        outfile <- file.path(outdir, paste0('replacement_pairs_n_',n_best,'_',datestamp,'.csv'))
+        outfile <- file.path(outdir, paste0('replacement_pairs_n',n_best,'_',datestamp,'.csv'))
         write.csv(replacements, outfile, row.names=F, quote=F, na='')
         cat('\nBest replacement pairings written to', outfile, '\n')
         
@@ -1018,7 +1021,7 @@ best_alt_pairs <- function(
         # combine replacement lists for all IDs that need replacing 
         alt_pairs <- do.call(rbind, alt_pair_list)
         out$alt_pairs <- alt_pairs
-        outfile <- file.path(outdir, paste0('alternative_pairs_n_',n_best,'_',datestamp,'.csv'))
+        outfile <- file.path(outdir, paste0('alternative_pairs_n',n_best,'_',datestamp,'.csv'))
         write.csv(alt_pairs, outfile, row.names=F, quote=F, na='')
         cat('\nBest alternative pairings written to', outfile, '\n')
 
@@ -1044,11 +1047,12 @@ best_alt_pairs <- function(
         }
         new_pairs$paired_dam <- 'NONE'
         new_pairs$paired_sire <- 'NONE'
+        new_pairs$breederpair <- 'NONE'
         new_pairs$comments <- NA
 
         # save best new pairs
         out$new_pairs <- new_pairs
-        outfile <- file.path(outdir, paste0('new_pairs_n_',n_best,'_',datestamp,'.csv'))
+        outfile <- file.path(outdir, paste0('new_pairs_n',n_best,'_',datestamp,'.csv'))
         write.csv(new_pairs, outfile, row.names=F, quote=F, na='')
         cat('\nTop', n_best, 'new pairings written to', outfile, '\n')
     }
