@@ -950,6 +950,7 @@ best_alt_pairs <- function(
                 use_fam = k_replacements[[pair_column]],
                 kinship = k_replacements$kinship,
                 replaced_with = rep('NONE', n_rows),
+                breederpair = rep('NONE', n_rows),
                 comments = rep(NA, n_rows))
             
             replacements_list[[id]] <- replacements
@@ -1012,7 +1013,8 @@ best_alt_pairs <- function(
                 animalid = rep(id, n_rows),
                 use_fam = k_alt_pairs[[pair_column]],
                 kinship = k_alt_pairs$kinship,
-                replaced_with = rep('NONE', n_rows),
+                paired_with = rep('NONE', n_rows),
+                breederpair = rep('NONE', n_rows),
                 comments = rep(NA, n_rows))
             
             alt_pair_list[[id]] <- alt_pairs
@@ -1118,4 +1120,135 @@ plot_k_hist <- function(
         lty=c(0,3,1,1,3,0), col=c(1,1,'red',1,1,1), lwd=c(1,1,2,2,1,1), cex=0.9, bty='n')
     dev.off()
     cat('Kinship histogram saved to', outfile, '\n')
+}
+
+merge_comments <- function(str1, str2) {
+
+    str1 <- gsub(',','', str1)
+    str2 <- gsub(',','', str2)
+    if(str1 == str2) return(str1)
+    if(startsWith(str2, str1)) {
+        # if str1 is prefix of str2, only show the additional part
+        additional <- substring(str2, nchar(str1) + 1)
+        return(paste(str1, additional, sep = ' | '))
+    }
+    return(paste(str1, str2, sep = ' | '))
+}
+
+
+# function to finalize a proposed breeder file with edits made in the colony
+final_breeder_file <- function(
+    proposed_pairs, # csv path or dataframe: the original proposed pairings file
+    colony_pairs, # csv path or dataframe: the pairings file executed in the colony
+    colony_df, # csv path or dataframe: the current generation's colony dataframe
+    outdir=NULL, 
+    alt_pairs = NULL, # csv path or dataframe: the 'alternative pairs' file executed in the colony
+    rep_pairs = NULL, # csv path or dataframe: the 'replacement pairs' file executed in the colony
+    new_pairs = NULL) # csv path or dataframe: the 'new pairs' file executed in the colony
+{
+    if (class(proposed_pairs)=='character') {
+        proposed_pairs <- read.csv(proposed_pairs)
+    }
+    if (class(colony_pairs)=='character') {
+        colony_pairs <- read.csv(colony_pairs)
+    }
+    if (class(colony_df)=='character') {
+        colony_df <- read.csv(colony_df)
+    }
+    if (!is.null(alt_pairs)) {
+        if (class(alt_pairs)=='character') {
+            alt_pairs <- read.csv(alt_pairs)
+        }
+    }
+    if (!is.null(rep_pairs)) {
+        if (class(rep_pairs)=='character') {
+            rep_pairs <- read.csv(rep_pairs)
+        }
+    }
+    if (!is.null(new_pairs)) {
+        if (class(new_pairs)=='character') {
+            new_pairs <- read.csv(new_pairs)
+        }
+    }
+
+    # check that IDs are identical between proposed and executed files
+    cols_to_compare <- c('generation','breederpair','kinship','dam_animalid','dam_earpunch',
+        'dam_coatcolor','sire_animalid','sire_earpunch','sire_coatcolor')
+    keep_cols <- c('generation','breederpair','kinship','dam_rfid','sire_rfid','dam_animalid','sire_animalid')
+
+    # eliminate extra rows from the colony file if they were already added manually
+    colony_pairs <- colony_pairs[1:nrow(proposed_pairs),]
+
+    # ensure that no IDs have been changed in the colony file
+    crosscheck <- identical(proposed_pairs[,cols_to_compare], colony_pairs[,cols_to_compare])
+
+    if (!crosscheck) {
+
+        cat('Error: IDs in the proposed pairing file and the colony file are not identical! \n')
+        cat('Check the following rows for mismatches before proceeding: \n')
+        for (col in cols_to_compare) {
+            if (!identical(proposed_pairs[[col]], colony_pairs[[col]])) {
+                mismatches <- which(!identical(proposed_pairs[[col]], colony_pairs[[col]]))
+                cat(col, ':', mismatches, '\n')
+            }
+        }
+    } else {
+
+        pairs <- proposed_pairs[,keep_cols]
+        pairs$dam_accessid <- sapply(pairs$dam_animalid, animalid_to_accessid)
+        pairs$sire_accessid <- sapply(pairs$sire_animalid, animalid_to_accessid)
+
+        # if only comments differ between files, incorporate new comments
+        if (identical(proposed_pairs$comments, colony_pairs$comments)) {
+            pairs$comments <- proposed_pairs$comments
+        } else {
+            pairs$comments <- merge_comments(proposed_pairs$comments, colony_pairs$comments)
+        }
+    }
+
+    # incorporate alternative pairings into the file
+    if (!is.null(alt_pairs)) {
+        alt_pairs <- alt_pairs[alt_pairs$paired_with != 'NONE',]
+        alt_pairs$dam_id <- NA
+        alt_pairs$sire_id <- NA
+        alt_pairs$dam_rfid <- NA
+        alt_pairs$sire_rfid <- NA
+
+        add_alt_pairs <- data.frame(matrix(ncol = length(keep_cols), nrow = nrow(alt_pairs)))
+        colnames(add_alt_pairs) <- keep_cols
+
+        for (i in 1:nrow(alt_pairs)) {
+            id <- alt_pairs$animalid[i]
+            mate_id <- alt_pairs$paired_with[i]
+            id_int <- tail(strsplit(id, "_")[[1]], 1)
+            id_sex <- ifelse(as.integer(id_int) > 8, 'F', 'M')
+            if (id_sex=='F') {
+                alt_pairs$dam_id[i] <- id
+                alt_pairs$sire_id[i] <- mate_id
+            } else {
+                alt_pairs$dam_id[i] <- mate_id
+                alt_pairs$sire_id[i] <- id
+            }
+        }
+
+        # save alternative pairings to the new df
+        add_alt_pairs$generation <- proposed_pairs$generation[1]
+        add_alt_pairs$breederpair <- alt_pairs$breederpair
+        add_alt_pairs$kinship <- round(alt_pairs$kinship, 4)
+        add_alt_pairs$dam_animalid <- alt_pairs$dam_id
+        add_alt_pairs$dam_rfid <- as.character(colony_df$rfid[match(alt_pairs$dam_id, colony_df$animalid)])
+        add_alt_pairs$sire_animalid <- alt_pairs$sire_id
+        add_alt_pairs$sire_rfid <- as.character(colony_df$rfid[match(alt_pairs$sire_id, colony_df$animalid)])
+        add_alt_pairs$dam_accessid <- sapply(alt_pairs$dam_id, animalid_to_accessid)
+        add_alt_pairs$sire_accessid <- sapply(alt_pairs$sire_id, animalid_to_accessid)
+        default_comment <- 'alternative pairing assigned using breedHS'
+        add_alt_pairs$comments <- ifelse(is.na(alt_pairs$comments),
+                                        default_comment,
+                                        paste(default_comment, alt_pairs$comments, sep = ' | '))
+        
+        pairs <- rbind(pairs, add_alt_pairs)
+    } # end of is.null(alt_pairs)
+
+    return(pairs)
+
 }
