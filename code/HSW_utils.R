@@ -1122,6 +1122,107 @@ plot_k_hist <- function(
     cat('Kinship histogram saved to', outfile, '\n')
 }
 
+
+plot_k_network <- function(
+    kinship, # path to the pairwise kinship or breederpair csv, or a corresponding R dataframe
+    pop, # the population name, eg 'hsw' or 'wfu'
+    gen, # the generation number
+    sample = c('all','breederpairs'), # which sample of rats (ie which file type) to process
+    out_dir # output directory path
+) {
+    library(viridis)
+    library(ggplot2)
+
+    if (class(kinship) == 'character') {
+        kinship <- read.csv(kinship)
+    } else if (class(kinship) == 'data.frame') {
+        kinship <- kinship
+    }
+
+    if (sample == 'all') {
+        outfile <- file.path(out_dir, paste0('hsw_gen', gen, '_k_net_all.png'))
+    } else if (sample == 'breederpairs') {
+        outfile <- file.path(out_dir, paste0('hsw_gen', gen, '_k_net_n', nrow(kinship), '_breeders.png'))
+    }
+
+    # plot title strings
+    if (sample == 'all') {
+        title_str <- paste('(all', nrow(kinship), 'possible pairs)')
+    } else if (sample == 'breederpairs') {
+        title_str <- paste(paste0('(', nrow(kinship)), 'breeder pairs)')
+    }
+    main_title <- paste(toupper(pop), paste0('gen', gen), 'pairwise kinship')
+    print(dim(kinship))
+
+    kinship$dam_fam <- sapply(kinship$dam_animalid, function(x) {
+        unlist(strsplit(x, '_'))[2]
+    })
+    kinship$sire_fam <- sapply(kinship$sire_animalid, function(x) {
+        unlist(strsplit(x, '_'))[2]
+    })
+    fam_ids <- sort(unique(c(kinship$dam_fam, kinship$sire_fam)), decreasing=T)
+    n_fams <- length(fam_ids)
+    min_k <- min(kinship$kinship)
+    max_k <- max(kinship$kinship)
+
+    # positions each family around the circle
+    fam_pos <- data.frame(
+        fam_id = fam_ids,
+        angle = seq(0, 2*pi, length.out = n_fams + 1)[1:n_fams],
+        x = cos(seq(0, 2*pi, length.out = n_fams + 1)[1:n_fams]),
+        y = sin(seq(0, 2*pi, length.out = n_fams + 1)[1:n_fams])
+    )
+
+    # create connections between fams
+    connections <- merge(kinship, fam_pos, by.x = 'dam_fam', by.y = 'fam_id')
+    names(connections)[names(connections) %in% c('x','y')] <- c('x1','y1')
+    connections <- merge(connections, fam_pos, by.x = 'sire_fam', by.y = 'fam_id')
+    names(connections)[names(connections) %in% c('x','y')] <- c('x2','y2')    
+
+    p <- ggplot() +
+    # curves for family connections
+    geom_curve(
+      data = connections,
+      aes(x = x1, y = y1, xend = x2, yend = y2, color = kinship, alpha = kinship), 
+      curvature = 0, 
+      linewidth = 2) +  
+    # points for family positions
+    geom_point(
+      data = fam_pos,
+      aes(x = x, y = y),
+      size = 4,
+      color = "black") +
+    # family labels
+    geom_text(
+      data = fam_pos,
+      aes(x = x * 1.1, y = y * 1.1, label = fam_id), size = 3.5) +
+    # color lines by K
+    scale_color_gradient(
+      low = viridis(1,1,0),
+      high = viridis(1,1,0.5),
+      name = 'Kinship\nCoefficient') +
+    # scale size by K
+    scale_size_continuous(range = c(0.5, 2)) +
+    # scale opacity by K
+    scale_alpha_continuous(range = c(3 * min_k, 3 * max_k), name = 'Kinship\nCoefficient') +
+    guides(linewidth = 'none', size = 'none', alpha = 'none') +
+    coord_fixed() +
+    theme_void() +
+    ggtitle(label = main_title, subtitle = title_str) +
+    theme(
+      legend.position = 'right',
+      plot.margin = margin(10, 10, 10, 10),
+      plot.title = element_text(size = 16, hjust = 0.5, margin = margin(b = 10)),  
+      plot.subtitle = element_text(size = 16, hjust = 0.5, margin = margin(b = 10)) 
+    ) 
+
+    png(outfile, width=9, height=9, units='in', res=300)
+    # par(mar=c(4,4,3.6,1), oma=c(0.4,0.4,0,0))
+    print(p)
+    dev.off()
+}
+
+
 merge_comments <- function(str1, str2) {
 
     str1 <- gsub(',','', str1)
@@ -1208,6 +1309,7 @@ final_breeder_file <- function(
 
     # incorporate alternative pairings into the file
     if (!is.null(alt_pairs)) {
+
         alt_pairs <- alt_pairs[alt_pairs$paired_with != 'NONE',]
         alt_pairs$dam_id <- NA
         alt_pairs$sire_id <- NA
@@ -1247,7 +1349,28 @@ final_breeder_file <- function(
                                         paste(default_comment, alt_pairs$comments, sep = ' | '))
         
         pairs <- rbind(pairs, add_alt_pairs)
-    } # end of is.null(alt_pairs)
+    } # end of alt_pairs
+
+    # incorporate replacement pairings into the file
+    if (!is.null(rep_pairs)) {
+
+        rep_pairs <- rep_pairs[rep_pairs$replaced_with != 'NONE',]
+        rep_pairs$dam_id <- NA
+        rep_pairs$sire_id <- NA
+        rep_pairs$dam_rfid <- NA
+        rep_pairs$sire_rfid <- NA
+
+        add_rep_pairs <- data.frame(matrix(ncol = length(keep_cols), nrow = nrow(rep_pairs)))
+        colnames(add_rep_pairs) <- keep_cols
+
+
+
+    }
+
+    # incorporate new pairings into the file
+    if (!is.null(new_pairs)) {
+        print('incorporate new pairings')
+    }
 
     return(pairs)
 
