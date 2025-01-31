@@ -96,7 +96,6 @@ get_wfu_accessid <- function(
 
 read_wfu_raw_ped <- function(ped)
 {
-    cat('Function: read_wfu_raw_ped() \n')
 
     # read in the pedigree file
     if (file_ext(ped) == 'xlsx') {
@@ -136,7 +135,6 @@ split_wfu_raw_ped <- function(
     outdir) # the desired directory in which to save per-gen raw pedigree files
 {
     
-    cat('Function: split_wfu_raw_ped() \n')
     wfu <- read_wfu_raw_ped(ped)
 
     # split the pedigree by generation
@@ -168,7 +166,6 @@ format_wfu_raw_ped <- function(
     outdir) # desired output directory path
 {
 
-    cat('Function: format_wfu_raw_ped() \n')
     wfu <- read_wfu_raw_ped(ped)
 
     # subset only the rows needed to identify breeders using breedail
@@ -219,7 +216,6 @@ wfu_raw_to_hsw <- function(
     ped, 
     outdir) 
 {
-    cat('Function: wfu_raw_to_hsw() \n')
     wfu <- read_wfu_raw_ped(ped)
 
     # subset only the rows needed to identify breeders using breedail
@@ -379,7 +375,6 @@ wfu_into_hsw_gen <- function(hsw_raw,   # an HSW assignment sheet (csv) w/ breed
                              outdir=NULL,    # directory in which to save the formatted pedigree file
                              return_df=FALSE) # whether to return the final df to the R console
 {
-    cat('Function: wfu_into_hsw_gen() \n')
     hsw <- read.csv(hsw_raw, na.str=c('','NA','NaN','nan'))
     wfu <- as.data.frame(read_excel(wfu_ss, sheet=wfu_sheet, na=c('NA','','?')))
     wfu <- wfu[!is.na(wfu[['Animal ID']]),]
@@ -547,7 +542,7 @@ create_breeder_file <- function(
     
     # final formatting
     pairs <- pairs[,col_order]
-    pairs$kinship <- round(pairs$kinship, 4)
+    pairs$kinship <-format(round(pairs$kinship, 4), nsmall=4)
     pairs$kinship <- sapply(pairs$kinship, function(x) paste0(x, paste0(rep(0,6-nchar(x)), collapse='')))
 
     # final columns: two to fill/log as physical pairing happens, one with pairing notes
@@ -582,7 +577,7 @@ count_breeder_pairs <- function(
         breederpairs <- breederpairs
     }
     assigned_breeders <- assignments[assignments$assignment=='hsw_breeders',]
-
+    
     # all animal IDs that have been assigned and paired so far
     assigned <- assigned_breeders$animalid
     paired <- c(breederpairs$dam_animalid, breederpairs$sire_animalid)
@@ -830,7 +825,7 @@ add_to_breeder_file <- function(
 # get n next-best replacements for a given set of animal IDs, or the n best pairings from all available IDs
 best_alt_pairs <- function(
     pairs,  # breederpair file
-    kinship, # kinship for all possible pairs
+    kinship, # kinship for all possible pairs, df or csv path
     avail_ids, # vector or path to animalids still available for pairing
     n_best = 4, # the number of next-best IDs to return per ID that needs replacing
     ids_to_replace=NULL, # vector or path
@@ -842,15 +837,15 @@ best_alt_pairs <- function(
         pairs <- read.csv(pairs)
     }
     if (class(kinship)=='character') {
-        kinship <- read.csv(kinship, colClasses=c('dam_fam'='character', 'sire_fam'='character'))
-    }
+        kinship <- read.csv(kinship)
+    } 
     if (length(avail_ids)==1 && file.exists(avail_ids)) {
         avail_ids <- readLines(avail_ids)
     } else { cat('Please provide a list of animal IDs available for pairing')}
     if (!is.null(ids_to_replace)) {
         if (length(ids_to_replace)==1 && file.exists(ids_to_replace)) {
             ids_to_replace <- readLines(ids_to_replace)
-        }
+        } 
     }
     if (!is.null(ids_to_pair)) {
         if (length(ids_to_pair)==1 && file.exists(ids_to_pair)) {
@@ -861,37 +856,54 @@ best_alt_pairs <- function(
     out <- list()
 
     # get the breederpair combination for each possible pairing
+    kinship$dam_fam <- sapply(kinship$dam_fam, function(x) {
+        if (nchar(x)==1) return(paste0('0',x)) else return(x)})
+    kinship$sire_fam <- sapply(kinship$sire_fam, function(x) {
+        if (nchar(x)==1) return(paste0('0',x)) else return(x)})
+
     kinship$combo <- paste0(kinship$dam_fam, '-', kinship$sire_fam)
 
     # get breederpair for each paired dam or sire
-    paired_dam_fam <- sapply(pairs$dam_animalid, function(x) sub('.*_B(\\d+)_.*', '\\1', x))
-    paired_sire_fam <- sapply(pairs$sire_animalid, function(x) sub('.*_B(\\d+)_.*', '\\1', x))
+    paired_dams <- pairs$paired_dam
+    paired_sires <- pairs$paired_sire
+    proposed_dams <- pairs$dam_animalid
+    proposed_sires <- pairs$sire_animalid
+    use_dam_ids <- ifelse(paired_dams=='NONE', proposed_dams, paired_dams)
+    use_sire_ids <- ifelse(paired_sires=='NONE', proposed_sires, paired_sires)
+    paired_dam_fam <- sapply(use_dam_ids, function(x) sub('.*_B(\\d+)_.*', '\\1', x))
+    paired_sire_fam <- sapply(use_sire_ids, function(x) sub('.*_B(\\d+)_.*', '\\1', x))
 
     # breederpair combo for all pairs
     paired_combos <- paste0(paired_dam_fam, '-', paired_sire_fam)
-    
+    reverse_pairs <- sapply(strsplit(paired_combos, '-'), function(pair) paste(rev(pair), collapse='-'))
+    paired_combos <- c(paired_combos, reverse_pairs)
+
     # remove paired combos from the total pool of combos
     kinship <- kinship[!kinship$combo %in% paired_combos,]
-
-    # get bp combos for all rats still available for pairing
+                              
+    # get all remaining novel pairing combos for all rats available for pairing
     avail_int <- sapply(strsplit(avail_ids, "_"), tail, 1)
     avail_sex <- sapply(avail_int, function(x) ifelse(as.integer(x) > 8, 'F', 'M'))
 
     avail_f <- avail_ids[which(avail_sex=='F')]
     avail_m <- avail_ids[which(avail_sex=='M')]
 
-    avail_f_fam <- sapply(avail_f, function(x) sub('.*_B(\\d+)_.*', '\\1', x))
-    avail_m_fam <- sapply(avail_m, function(x) sub('.*_B(\\d+)_.*', '\\1', x))
+    avail_f_fam <- unique(sapply(avail_f, function(x) sub('.*_B(\\d+)_.*', '\\1', x)))
+    avail_m_fam <- unique(sapply(avail_m, function(x) sub('.*_B(\\d+)_.*', '\\1', x)))
 
-    avail_combos <- (expand.grid(avail_f_fam, avail_m_fam))
-    avail_combos <- paste0(avail_combos[,1], '-', avail_combos[,2])
+    avail_combos <- expand.grid(avail_f_fam, avail_m_fam)
+    colnames(avail_combos) <- c('dam_fam','sire_fam')                        
+    avail_combos$combo <- paste0(avail_combos[,1], '-', avail_combos[,2])
+    avail_combos <- avail_combos[!avail_combos$combo %in% paired_combos,]
 
     # kinship of all possible combos still available to pair
-    kin_out <- kinship[kinship$combo %in% avail_combos,]
-    kin_out <- kin_out[,3:(ncol(kin_out)-1)] # drop specific animal IDs
+    k_avail <- kinship[kinship$combo %in% avail_combos$combo,]
+    k_avail <- k_avail[k_avail$dam_fam != k_avail$sire_fam,]
+    k_avail <- k_avail[,3:(ncol(k_avail)-1)] # drop specific animal IDs
+
     if (k_all) {
         outfile <- file.path(outdir, paste0('kinship_all_avail_fams_',datestamp,'.csv'))
-        write.csv(kin_out, outfile, row.names=F, quote=F, na='')
+        write.csv(k_avail, outfile, row.names=F, quote=F, na='')
         cat('\nKinship for all available pairings written to', outfile, '\n')
     }
 
@@ -903,53 +915,65 @@ best_alt_pairs <- function(
         ids_sex <- sapply(ids_int, function(x) ifelse(as.integer(x) > 8, 'F', 'M'))
         f_idx <- which(ids_sex=='F')
         m_idx <- which(ids_sex=='M')
-
+        f_to_replace <- ids_to_replace[f_idx]
+        m_to_replace <- ids_to_replace[m_idx]
+        
+        # get the ids and families of mates proposed for the IDs that need replacement
+        lonely_dams <- pairs[pairs$sire_animalid %in% m_to_replace,]$dam_animalid 
+        lonely_sires <- pairs[pairs$dam_animalid %in% f_to_replace,]$sire_animalid 
+        lonely_f_fams <- sapply(lonely_dams, function(x) sub('.*_B(\\d+)_.*', '\\1', x))
+        lonely_m_fams <- sapply(lonely_sires, function(x) sub('.*_B(\\d+)_.*', '\\1', x))
         fams_to_replace <- sapply(ids_to_replace, function(x) sub('.*_B(\\d+)_.*', '\\1', x))
         f_fams_to_replace <- fams_to_replace[f_idx]
         m_fams_to_replace <- fams_to_replace[m_idx]
 
-        avail_f_fam <- sapply(avail_f, function(x) sub('.*_B(\\d+)_.*', '\\1', x))
-        avail_m_fam <- sapply(avail_m, function(x) sub('.*_B(\\d+)_.*', '\\1', x))
+        # designate families to replace as 'available'
+        repl_avail_f_fam <- c(avail_f_fam, f_fams_to_replace, lonely_f_fams)
+        repl_avail_m_fam <- c(avail_m_fam, m_fams_to_replace, lonely_m_fams)
 
-        avail_f_fam <- c(avail_f_fam, f_fams_to_replace)
-        avail_m_fam <- c(avail_m_fam, m_fams_to_replace)
-
-        avail_combos <- (expand.grid(avail_f_fam, avail_m_fam))
-        avail_combos <- paste0(avail_combos[,1], '-', avail_combos[,2])
-
-        # kinship of all possible combos still available to pair
-        kin_out <- kinship[kinship$combo %in% avail_combos,]
-        kin_out <- kin_out[,3:(ncol(kin_out)-1)] # drop specific animal IDs
-
+        repl_avail_combos <- expand.grid(repl_avail_f_fam, repl_avail_m_fam)
+        colnames(repl_avail_combos) <- c('dam_fam','sire_fam')
+        repl_avail_combos$combo <- paste0(repl_avail_combos$dam_fam, '-', repl_avail_combos$sire_fam)
+        repl_k_avail <- kinship[kinship$combo %in% repl_avail_combos$combo,]
+        repl_k_avail <- repl_k_avail[!repl_k_avail$combo %in% paired_combos,]
+                                  
         for (id in ids_to_replace) {
 
             id_int <- tail(strsplit(id[1], "_")[[1]], 1)
             id_sex <- ifelse(as.integer(id_int) > 8, 'F', 'M')
+            id_fam <- sub('.*_B(\\d+)_.*', '\\1', id)
+            id_col <- ifelse(id_sex=='F', 'dam_animalid', 'sire_animalid')
             
             # identify the proposed mate for the ID that needs replacing
-            id_col <- ifelse(id_sex=='F', 'dam_animalid', 'sire_animalid')
-            mate_col <- ifelse(id_sex=='F', 'sire_animalid', 'dam_animalid')
+            mate_col <- setdiff(c('dam_animalid','sire_animalid'), id_col)
             mate_id <- pairs[pairs[[id_col]]==id,][[mate_col]]
-            mate_sex <- ifelse(id_sex=='F', 'M', 'F')
+            mate_sex <- setdiff(c('M','F'), id_sex)
             mate_fam <- sub('.*_B(\\d+)_.*', '\\1', mate_id)
-            mate_combo <- ifelse(mate_sex=='F', paste0(mate_fam,'-'), paste0('-',mate_fam))
 
             # get the list of IDs that can replace the input ID
-            k_column <- ifelse(mate_sex=='F', 'dam_fam', 'sire_fam')
-            pair_column <- ifelse(mate_sex=='F', 'sire_fam','dam_fam')
-            k_replacements <- kin_out[kin_out[[k_column]]==mate_fam,]
-            k_replacements <- k_replacements[order(k_replacements$kinship),]
-            if (nrow(k_replacements) > n_best) {
-                k_replacements <- k_replacements[1:n_best,]
-            }
+            k_id_col <- ifelse(id_sex=='F', 'dam_fam', 'sire_fam')
+            k_mate_col <- setdiff(c('sire_fam','dam_fam'), k_id_col)
+            k_replacements <- repl_k_avail[repl_k_avail[[k_mate_col]] == mate_fam,]
+            k_replacements <- k_replacements[order(k_replacements$kinship),]  
             n_rows <- nrow(k_replacements)
 
+            if (n_rows > n_best) {
+                k_replacements <- k_replacements[1:n_best,]
+                n_rows <- n_best
+            }
+            # if no replacements are available without repeating an already-executed pairing,
+            # append the ID of the mate to ids_to_pair
+            if (n_rows == 0) {
+                cat('Could not find a novel replacement for', id, 'to be paired with', mate_id, '\n')
+                cat('Consider new pairings as an alternative \n')
+            }
+
             replacements <- data.frame(
-                animalid = rep(mate_id, n_rows),
-                orig_pair = rep(id, n_rows),
-                use_fam = k_replacements[[pair_column]],
+                id_to_pair = rep(mate_id, n_rows),
+                id_to_replace = rep(id, n_rows),
+                use_fam = k_replacements[[k_id_col]],
                 kinship = k_replacements$kinship,
-                replaced_with = rep('NONE', n_rows),
+                paired_with = rep('NONE', n_rows),
                 breederpair = rep('NONE', n_rows),
                 comments = rep(NA, n_rows))
             
@@ -981,37 +1005,42 @@ best_alt_pairs <- function(
         avail_f_fam <- sapply(avail_f, function(x) sub('.*_B(\\d+)_.*', '\\1', x))
         avail_m_fam <- sapply(avail_m, function(x) sub('.*_B(\\d+)_.*', '\\1', x))
 
-        avail_f_fam <- c(avail_f_fam, f_fams_to_pair)
-        avail_m_fam <- c(avail_m_fam, m_fams_to_pair)
+        alt_avail_f_fam <- c(avail_f_fam, f_fams_to_pair)
+        alt_avail_m_fam <- c(avail_m_fam, m_fams_to_pair)
 
-        avail_combos <- (expand.grid(avail_f_fam, avail_m_fam))
-        avail_combos <- paste0(avail_combos[,1], '-', avail_combos[,2])
+        alt_avail_combos <- (expand.grid(alt_avail_f_fam, alt_avail_m_fam))
+        colnames(alt_avail_combos) <- c('dam_fam','sire_fam')
+        alt_avail_combos$combo <- paste0(alt_avail_combos[,1], '-', alt_avail_combos[,2])
 
         # kinship of all possible combos still available to pair
-        kin_out <- kinship[kinship$combo %in% avail_combos,]
-        kin_out <- kin_out[,3:(ncol(kin_out)-1)] # drop specific animal IDs
+        alt_k_avail <- kinship[kinship$combo %in% alt_avail_combos$combo,]
+        alt_k_avail <- alt_k_avail[,3:(ncol(alt_k_avail)-1)] # drop specific animal IDs
+        alt_k_avail <- alt_k_avail[!alt_k_avail$combo %in% paired_combos,]
 
         for (id in ids_to_pair) {
+            print(id)
 
             id_int <- tail(strsplit(id[1], "_")[[1]], 1)
             id_sex <- ifelse(as.integer(id_int) > 8, 'F', 'M')
             id_fam <- sub('.*_B(\\d+)_.*', '\\1', id)
             id_col <- ifelse(id_sex=='F', 'dam_animalid', 'sire_animalid')
-            mate_col <- ifelse(id_sex=='F', 'sire_animalid', 'dam_animalid')
+            mate_col <- setdiff(c('dam_animalid', 'sire_animalid'), id_col)
 
             # get the list of IDs that can be paired with the input ID
-            k_column <- ifelse(id_sex=='F', 'dam_fam', 'sire_fam')
-            pair_column <- ifelse(id_sex=='F', 'sire_fam','dam_fam')
-            k_alt_pairs <- kin_out[kin_out[[k_column]]==id_fam,]
+            k_id_col <- ifelse(id_sex=='F', 'dam_fam', 'sire_fam')
+            k_mate_col <- setdiff(c('dam_fam','sire_fam'), k_id_col)
+            k_alt_pairs <- alt_k_avail[alt_k_avail[[k_id_col]]==id_fam,]
             k_alt_pairs <- k_alt_pairs[order(k_alt_pairs$kinship),]
-            if (nrow(k_alt_pairs) > n_best) {
-                k_alt_pairs <- k_alt_pairs[1:n_best,]
-            }
             n_rows <- nrow(k_alt_pairs)
+
+            if (n_rows > n_best) {
+                k_alt_pairs <- k_alt_pairs[1:n_best,]
+                n_rows <- n_best
+            }
 
             alt_pairs <- data.frame(
                 animalid = rep(id, n_rows),
-                use_fam = k_alt_pairs[[pair_column]],
+                use_fam = k_alt_pairs[[k_mate_col]],
                 kinship = k_alt_pairs$kinship,
                 paired_with = rep('NONE', n_rows),
                 breederpair = rep('NONE', n_rows),
@@ -1033,7 +1062,7 @@ best_alt_pairs <- function(
     if (is.null(ids_to_replace) && is.null(ids_to_pair)) {
         
         # find the n_best lowest-kinship pairings that are available
-        kin_best <- kin_out[order(kin_out$kinship),]
+        kin_best <- k_avail[order(k_avail$kinship),]
         new_pairs <- data.frame()
         used_dams <- c()
         used_sires <- c()
@@ -1141,25 +1170,19 @@ plot_k_network <- function(
 
     if (sample == 'all') {
         outfile <- file.path(out_dir, paste0('hsw_gen', gen, '_k_net_all.png'))
+        title_str <- paste('(all', nrow(kinship), 'possible pairs)')
+        kinship <- kinship[kinship$dam_fam != kinship$sire_fam,]
+        lwd <- 0.2
+
     } else if (sample == 'breederpairs') {
         outfile <- file.path(out_dir, paste0('hsw_gen', gen, '_k_net_n', nrow(kinship), '_breeders.png'))
-    }
-
-    # plot title strings
-    if (sample == 'all') {
-        title_str <- paste('(all', nrow(kinship), 'possible pairs)')
-    } else if (sample == 'breederpairs') {
         title_str <- paste(paste0('(', nrow(kinship)), 'breeder pairs)')
+        kinship$dam_fam <- gsub('B','',sapply(kinship$dam_animalid, function(x) {unlist(strsplit(x, '_'))[2]}))
+        kinship$sire_fam <- gsub('B','',sapply(kinship$sire_animalid, function(x) {unlist(strsplit(x, '_'))[2]}))
+        lwd <- 2
     }
-    main_title <- paste(toupper(pop), paste0('gen', gen), 'pairwise kinship')
-    print(dim(kinship))
 
-    kinship$dam_fam <- sapply(kinship$dam_animalid, function(x) {
-        unlist(strsplit(x, '_'))[2]
-    })
-    kinship$sire_fam <- sapply(kinship$sire_animalid, function(x) {
-        unlist(strsplit(x, '_'))[2]
-    })
+    main_title <- paste(toupper(pop), paste0('gen', gen), 'pairwise kinship')
     fam_ids <- sort(unique(c(kinship$dam_fam, kinship$sire_fam)), decreasing=T)
     n_fams <- length(fam_ids)
     min_k <- min(kinship$kinship)
@@ -1185,7 +1208,7 @@ plot_k_network <- function(
       data = connections,
       aes(x = x1, y = y1, xend = x2, yend = y2, color = kinship, alpha = kinship), 
       curvature = 0, 
-      linewidth = 2) +  
+      linewidth = lwd) +  
     # points for family positions
     geom_point(
       data = fam_pos,
@@ -1220,6 +1243,8 @@ plot_k_network <- function(
     # par(mar=c(4,4,3.6,1), oma=c(0.4,0.4,0,0))
     print(p)
     dev.off()
+    cat('Kinship network saved to', outfile, '\n')
+
 }
 
 
@@ -1242,6 +1267,8 @@ final_breeder_file <- function(
     proposed_pairs, # csv path or dataframe: the original proposed pairings file
     colony_pairs, # csv path or dataframe: the pairings file executed in the colony
     colony_df, # csv path or dataframe: the current generation's colony dataframe
+    pop,
+    gen,
     outdir=NULL, 
     alt_pairs = NULL, # csv path or dataframe: the 'alternative pairs' file executed in the colony
     rep_pairs = NULL, # csv path or dataframe: the 'replacement pairs' file executed in the colony
@@ -1348,7 +1375,9 @@ final_breeder_file <- function(
                                         default_comment,
                                         paste(default_comment, alt_pairs$comments, sep = ' | '))
         
+        # append alternative pairings to the breeder file
         pairs <- rbind(pairs, add_alt_pairs)
+        
     } # end of alt_pairs
 
     # incorporate replacement pairings into the file
@@ -1362,16 +1391,20 @@ final_breeder_file <- function(
 
         add_rep_pairs <- data.frame(matrix(ncol = length(keep_cols), nrow = nrow(rep_pairs)))
         colnames(add_rep_pairs) <- keep_cols
-
-
-
-    }
+    
+    } # end of rep_pairs
 
     # incorporate new pairings into the file
     if (!is.null(new_pairs)) {
         print('incorporate new pairings')
     }
 
+    if (!is.null(outdir)) {
+        datestamp <- format(Sys.time(),'%Y%m%d')
+        outfile <- paste0(pop, '_gen', gen, '_', gen+1, '_breeders_final.csv')
+        write.csv(pairs, file.path(outdir, outfile), row.names=F, quote=F, na='')
+        cat('Saved final breeders file to', file.path(outdir, outfile), '\n')
+    }
     return(pairs)
 
 }
