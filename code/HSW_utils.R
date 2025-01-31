@@ -683,145 +683,6 @@ count_breeder_pairs <- function(
 }
 
 
-# add proposed alternative breeder pairs to an existing breeder file
-add_to_breeder_file <- function(
-    orig_pairs,   # R dataframe or csv path: breeder file output by create_breeder_file()
-    new_pairings, # R list output by get.alternative.pairings()
-    df,           # colony dataframe or assignment file
-    n_new,        # int, the number of desired new pairings to add
-    wfu_ss=NULL,  # WFU shipping sheet, if pairing with shipped WFU rats
-    outdir=NULL)
-{
-    if (class(orig_pairs) == 'data.frame') {
-        orig_pairs <- orig_pairs
-    } else if (class(orig_pairs) == 'character') {
-        orig_pairs <- read.csv(orig_pairs, na.str=c('','NA','NaN','nan'))
-    }
-    if (!is.null(wfu_ss)) {    
-        wfu <- as.data.frame(read_excel(wfu_ss))
-    }
-    new_pairings <- new_pairings$best.pairs  
-    df <- read.csv(df, na.str=c('','NA','NaN','nan'))
-    names(new_pairings)[1:2] <- c('dam_animalid','sire_animalid')
-    gen <- as.numeric(df$generation[1])
-    n_paired <- nrow(orig_pairs)
-    total_pairs <- n_paired + n_new
-
-    all_males <- unique(new_pairings$sire_animalid)
-    all_females <- unique(new_pairings$dam_animalid)
-
-    # subset the number of desired new pairings with minimum kinship
-    for (i in 1:n_new) {
-        if (i == 1) {
-            pairs_to_add <- new_pairings[new_pairings$kinship == min(new_pairings$kinship),]
-            unavail_ids <- c(pairs_to_add$dam_animalid, pairs_to_add$sire_animalid)
-            available_f <- new_pairings[!new_pairings$dam_animalid %in% unavail_ids,] 
-            available_m <- new_pairings[!new_pairings$sire_animalid %in% unavail_ids,]
-            available_pairings <- rbind(available_f, available_m)
-            available_pairings <- available_pairings[!duplicated(available_pairings),]
-            available_pairings <- new_pairings[!new_pairings$dam_animalid %in% unavail_ids,]
-            available_pairings <- available_pairings[!available_pairings$sire_animalid %in% unavail_ids,]
-        }
-        if (i > 1) {
-            if (nrow(available_pairings) == 0) {
-                stop(paste('No further combinations are available for pairing.', 
-                           i-1, 'pairs successfully added'))
-            }
-            next_pair <- available_pairings[available_pairings$kinship == 
-                                            min(available_pairings$kinship),]
-            pairs_to_add <- rbind(pairs_to_add, next_pair)
-            unavail_ids <- unique(c(unavail_ids, pairs_to_add$dam_animalid, pairs_to_add$sire_animalid))
-            available_f <- available_pairings[!(new_pairings$dam_animalid %in% unavail_ids),] 
-            available_m <- new_pairings[!(new_pairings$sire_animalid %in% unavail_ids),]
-            available_pairings <- rbind(available_f, available_m)
-        }
-    }
-
-    for (i in 1:nrow(pairs_to_add)) {
-        
-        dam <- pairs_to_add$dam_animalid[i]
-        
-        if (substr(dam,1,1)=='G') {
-            dam_df <- df[df$animalid==dam,]
-            pairs_to_add$dam_rfid[i] <- as.character(dam_df$rfid)
-            pairs_to_add$dam_earpunch[i] <- dam_df$earpunch
-            pairs_to_add$dam_coatcolor[i] <- dam_df$coatcolor
-            pairs_to_add$dam_rack_num[i] <- dam_df$rack_number
-            pairs_to_add$dam_rack_pos[i] <- dam_df$rack_position            
-        } else if (substr(dam,1,1)=='H') {
-            dam_df <- wfu[wfu[['Animal ID']]==dam,]
-            pairs_to_add$dam_rfid[i] <- dam_df[['Transponder ID']]
-            pairs_to_add$dam_earpunch[i] <- dam_df[['Ear Punch']]
-            pairs_to_add$dam_coatcolor[i] <- dam_df[['Coat Color']]
-            pairs_to_add$dam_rack_num[i] <- NA
-            pairs_to_add$dam_rack_pos[i] <- NA
-            pairs_to_add$dam_wfu_cage[i] <- dam_df[['Ship Box']]
-        }
-
-        sire <- pairs_to_add$sire_animalid[i]
-        
-        if (substr(sire,1,1)=='G') {
-            sire_df <- df[df$animalid==sire,]
-            pairs_to_add$sire_rfid[i] <- as.character(sire_df$rfid)
-            pairs_to_add$sire_earpunch[i] <- sire_df$earpunch
-            pairs_to_add$sire_coatcolor[i] <- sire_df$coatcolor
-            pairs_to_add$sire_rack_num[i] <- sire_df$rack_number
-            pairs_to_add$sire_rack_pos[i] <- sire_df$rack_position            
-        } else if (substr(sire,1,1)=='H') {
-            sire_df <- wfu[wfu[['Animal ID']]==sire,]
-            pairs_to_add$sire_rfid[i] <- sire_df[['Transponder ID']]
-            pairs_to_add$sire_earpunch[i] <- sire_df[['Ear Punch']]
-            pairs_to_add$sire_coatcolor[i] <- sire_df[['Coat Color']]
-            pairs_to_add$sire_rack_num[i] <- NA
-            pairs_to_add$sire_rack_pos[i] <- NA
-            pairs_to_add$sire_wfu_cage[i] <- sire_df[['Ship Box']]
-        }
-    }
-
-    pairs_to_add$generation <- gen
-    if (n_paired < 10) {
-        pairs_to_add$breederpair <- c(
-            paste0('HSW', gen + 1, '_B0', seq.int((n_paired+1),9)),
-            paste0('HSW', gen + 1, '_B', seq.int(10,total_pairs))
-        )
-    } else if (n_paired >= 10) {
-        pairs_to_add$breederpair <- paste0('HSW', gen + 1, '_B', seq.int((n_paired+1),total_pairs))
-    }
-
-    if (is.null(wfu_ss)) {
-        col_order <- c('generation','breederpair','kinship','dam_rfid','dam_animalid','dam_earpunch',
-                       'dam_coatcolor','dam_rack_num','dam_rack_pos','sire_rfid',
-                       'sire_animalid','sire_earpunch','sire_coatcolor','sire_rack_num','sire_rack_pos')
-    } else {
-        col_order <- c('generation','breederpair','kinship','dam_rfid','dam_animalid','dam_earpunch',
-                       'dam_coatcolor','dam_rack_num','dam_rack_pos','dam_wfu_cage',
-                       'sire_rfid','sire_animalid','sire_earpunch','sire_coatcolor',
-                       'sire_rack_num','sire_rack_pos','sire_wfu_cage')
-    }
-    
-    pairs_to_add <- pairs_to_add[,col_order]
-    pairs_to_add$kinship <- round(pairs_to_add$kinship, 4)
-    all_pairs <- rbind(orig_pairs, pairs_to_add)
-    all_pairs_slim <- all_pairs[,c('generation','breederpair','kinship','dam_rfid','sire_rfid',
-                                    'dam_animalid','sire_animalid'),]
-
-    if (!is.null(outdir)) {
-        datestamp <- format(Sys.time(),'%Y%m%d')
-        outfile <- paste0('hsw_gen', gen, '_', gen+1, '_parents_', datestamp, '.csv')
-        slimfile <- gsub('.csv', '_ids.csv', outfile)
-        colony_file <- gsub('.csv','_colony.csv',outfile)
-        outfile <- file.path(outdir, outfile)
-        slimfile <- file.path(outdir, slimfile)
-        colony_file <- file.path(outdir, colony_file)
-        write.csv(all_pairs, outfile, row.names=F, quote=F, na='')
-        write.csv(all_pairs, colony_file, row.names=F, quote=F, na='')
-        write.csv(all_pairs_slim, slimfile, row.names=F, quote=F, na='')
-        cat('Updated breeder file written to', outfile, '\n')
-    }
-
-    return(all_pairs)
-}
-
 # get n next-best replacements for a given set of animal IDs, or the n best pairings from all available IDs
 best_alt_pairs <- function(
     pairs,  # breederpair file
@@ -928,8 +789,8 @@ best_alt_pairs <- function(
         m_fams_to_replace <- fams_to_replace[m_idx]
 
         # designate families to replace as 'available'
-        repl_avail_f_fam <- c(avail_f_fam, f_fams_to_replace, lonely_f_fams)
-        repl_avail_m_fam <- c(avail_m_fam, m_fams_to_replace, lonely_m_fams)
+        repl_avail_f_fam <- unique(c(avail_f_fam, f_fams_to_replace, lonely_f_fams))
+        repl_avail_m_fam <- unique(c(avail_m_fam, m_fams_to_replace, lonely_m_fams))
 
         repl_avail_combos <- expand.grid(repl_avail_f_fam, repl_avail_m_fam)
         colnames(repl_avail_combos) <- c('dam_fam','sire_fam')
@@ -987,7 +848,7 @@ best_alt_pairs <- function(
         write.csv(replacements, outfile, row.names=F, quote=F, na='')
         cat('\nBest replacement pairings written to', outfile, '\n')
         
-    } 
+    } # end of ids_to_replace
 
     # identify best alternative pairings for IDs in need of a new mate pair
     if (!is.null(ids_to_pair)) {
@@ -1002,23 +863,21 @@ best_alt_pairs <- function(
         f_fams_to_pair <- fams_to_pair[f_idx]
         m_fams_to_pair <- fams_to_pair[m_idx]
 
-        avail_f_fam <- sapply(avail_f, function(x) sub('.*_B(\\d+)_.*', '\\1', x))
-        avail_m_fam <- sapply(avail_m, function(x) sub('.*_B(\\d+)_.*', '\\1', x))
+        avail_f_fams <- sapply(avail_f, function(x) sub('.*_B(\\d+)_.*', '\\1', x))
+        avail_m_fams <- sapply(avail_m, function(x) sub('.*_B(\\d+)_.*', '\\1', x))
 
-        alt_avail_f_fam <- c(avail_f_fam, f_fams_to_pair)
-        alt_avail_m_fam <- c(avail_m_fam, m_fams_to_pair)
+        alt_avail_f_fams <- unique(c(avail_f_fams, f_fams_to_pair))
+        alt_avail_m_fams <- unique(c(avail_m_fams, m_fams_to_pair))
 
-        alt_avail_combos <- (expand.grid(alt_avail_f_fam, alt_avail_m_fam))
+        alt_avail_combos <- (expand.grid(alt_avail_f_fams, alt_avail_m_fams))
         colnames(alt_avail_combos) <- c('dam_fam','sire_fam')
         alt_avail_combos$combo <- paste0(alt_avail_combos[,1], '-', alt_avail_combos[,2])
 
         # kinship of all possible combos still available to pair
         alt_k_avail <- kinship[kinship$combo %in% alt_avail_combos$combo,]
-        alt_k_avail <- alt_k_avail[,3:(ncol(alt_k_avail)-1)] # drop specific animal IDs
         alt_k_avail <- alt_k_avail[!alt_k_avail$combo %in% paired_combos,]
 
         for (id in ids_to_pair) {
-            print(id)
 
             id_int <- tail(strsplit(id[1], "_")[[1]], 1)
             id_sex <- ifelse(as.integer(id_int) > 8, 'F', 'M')
@@ -1056,7 +915,7 @@ best_alt_pairs <- function(
         write.csv(alt_pairs, outfile, row.names=F, quote=F, na='')
         cat('\nBest alternative pairings written to', outfile, '\n')
 
-    }
+    } # end of ids_to_pair
     
     # identify the best pairings among available IDs
     if (is.null(ids_to_replace) && is.null(ids_to_pair)) {
@@ -1249,18 +1108,37 @@ plot_k_network <- function(
 
 
 merge_comments <- function(str1, str2) {
-
+    # Initialize output vector with same length as inputs
+    result <- vector("character", length(str1))
+    
+    # Remove commas from both vectors
     str1 <- gsub(',','', str1)
     str2 <- gsub(',','', str2)
-    if(str1 == str2) return(str1)
-    if(startsWith(str2, str1)) {
-        # if str1 is prefix of str2, only show the additional part
-        additional <- substring(str2, nchar(str1) + 1)
-        return(paste(str1, additional, sep = ' | '))
+    
+    # Process each pair of strings
+    for(i in seq_along(str1)) {
+        s1 <- str1[i]
+        s2 <- str2[i]
+        
+        if(is.na(s1) && is.na(s2)) {
+            result[i] <- NA
+        } else if(is.na(s1)) {
+            result[i] <- s2
+        } else if(is.na(s2)) {
+            result[i] <- s1
+        } else if(s1 == s2) {
+            result[i] <- s1
+        } else if(startsWith(s2, s1)) {
+            # if s1 is prefix of s2, only show the additional part
+            additional <- substring(s2, nchar(s1) + 1)
+            result[i] <- paste(s1, additional, sep = ' | ')
+        } else {
+            result[i] <- paste(s1, s2, sep = ' | ')
+        }
     }
-    return(paste(str1, str2, sep = ' | '))
+    
+    return(result)
 }
-
 
 # function to finalize a proposed breeder file with edits made in the colony
 final_breeder_file <- function(
@@ -1363,7 +1241,7 @@ final_breeder_file <- function(
         # save alternative pairings to the new df
         add_alt_pairs$generation <- proposed_pairs$generation[1]
         add_alt_pairs$breederpair <- alt_pairs$breederpair
-        add_alt_pairs$kinship <- round(alt_pairs$kinship, 4)
+        add_alt_pairs$kinship <- format(round(alt_pairs$kinship, 4), nsmall=4)
         add_alt_pairs$dam_animalid <- alt_pairs$dam_id
         add_alt_pairs$dam_rfid <- as.character(colony_df$rfid[match(alt_pairs$dam_id, colony_df$animalid)])
         add_alt_pairs$sire_animalid <- alt_pairs$sire_id
@@ -1383,28 +1261,125 @@ final_breeder_file <- function(
     # incorporate replacement pairings into the file
     if (!is.null(rep_pairs)) {
 
-        rep_pairs <- rep_pairs[rep_pairs$replaced_with != 'NONE',]
+        rep_pairs <- rep_pairs[rep_pairs$paired_with != 'NONE',]
         rep_pairs$dam_id <- NA
         rep_pairs$sire_id <- NA
         rep_pairs$dam_rfid <- NA
         rep_pairs$sire_rfid <- NA
-
+        rep_pairs$breedhs_comments <- NA
+        
         add_rep_pairs <- data.frame(matrix(ncol = length(keep_cols), nrow = nrow(rep_pairs)))
         colnames(add_rep_pairs) <- keep_cols
-    
+
+        for (i in 1:nrow(rep_pairs)) {
+
+            bp <- rep_pairs$breederpair[i]
+            kinship <- format(round(rep_pairs$kinship[i], 4), nsmall=4)
+            colony_comment <- rep_pairs$comments[i]
+            id_to_replace <- rep_pairs$id_to_replace[i]
+            id <- rep_pairs$id_to_pair[i]
+            mate_id <- rep_pairs$paired_with[i]
+            id_int <- tail(strsplit(id, "_")[[1]], 1)
+            id_sex <- ifelse(as.integer(id_int) > 8, 'F', 'M')
+            if (id_sex=='F') {
+                dam_id <- id
+                sire_id <- mate_id
+                id_row <- which(pairs$dam_animalid == id)
+                rep_id_row <- which(pairs$sire_animalid == id_to_replace)
+                rep_breeder <- 'sire'
+            } else {
+                dam_id <- mate_id
+                sire_id <- id
+                id_row <- which(pairs$sire_animalid == id)
+                rep_id_row <- which(pairs$dam_animalid == id_to_replace)
+                rep_breeder <- 'dam'
+            }
+
+            # ensure that the correct replacement is being made - all indiv and bp IDs line up
+            bp_row <- which(pairs$breederpair == bp)
+            if (id_row == rep_id_row & id_row != bp_row) {
+                
+                cat('Check your breederpair number \n')
+                cat('IDs', dam_id, 'and', sire_id, 'were originally proposed to form', pairs$breederpair[id_row], '\n')
+                quit(status=1)
+
+            # if IDs align, overwrite old IDs with the new pairing
+            } else if (id_row == rep_id_row & id_row == bp_row) {
+
+                dam_rfid <- colony_df$rfid[which(colony_df$animalid == dam_id)]
+                dam_accessid <- animalid_to_accessid(dam_id)
+                sire_rfid <- colony_df$rfid[which(colony_df$animalid == sire_id)]
+                sire_accessid <- animalid_to_accessid(sire_id)
+                
+                pairs$dam_animalid[id_row] <- dam_id
+                pairs$sire_animalid[id_row] <- sire_id
+                pairs$dam_accessid[id_row] <- dam_accessid
+                pairs$sire_accessid[id_row] <- sire_accessid
+                pairs$dam_rfid[id_row] <- dam_rfid
+                pairs$sire_rfid[id_row] <- sire_rfid
+                pairs$kinship[id_row] <- kinship
+
+                # log all comments made for this pairing
+                pairs_comment <- colony_pairs$comments[id_row]
+                pairs_comment <- ifelse(pairs_comment == 'breederpair assigned using breedHS', NA, pairs_comment)
+                pairs_comment <- gsub('breederpair assigned using breedHS', '', pairs_comment)
+                
+                cat('pairs_comment:', pairs_comment, '\n')
+                breedhs_comment <- paste('original', rep_breeder, id_to_replace, 'replaced with', mate_id, 'using breedHS')
+                cat('colony_comment:', colony_comment, '\n')
+                cat('breedhs_comment:', breedhs_comment, '\n')
+                merged_comment <- merge_comments(pairs_comment, breedhs_comment)
+                merged_comment <- merge_comments(merged_comment, colony_comment)
+                merged_comment <- gsub('NA', '', merged_comment)
+                merged_comment <- gsub(' \\| \\| ', ' | ', merged_comment)  # replace double separators
+                merged_comment <- gsub('^\\s*\\|\\s*', '', merged_comment)  # reemove leading separator
+                merged_comment <- gsub('\\s*\\|\\s*$', '', merged_comment)  # remove trailing separator
+                pairs$comments[id_row] <-  merged_comment
+                
+            } else {
+                cat('General error with replacement IDs Check your individual and breederpair IDs \n')
+                quit(status=1)
+            }
+        
+        } # end of rows loop                       
+
     } # end of rep_pairs
 
     # incorporate new pairings into the file
     if (!is.null(new_pairs)) {
-        print('incorporate new pairings')
-    }
+
+        new_pairs <- new_pairs[new_pairs$breederpair != 'NONE',]
+        new_pairs$dam_id <- NA
+        new_pairs$sire_id <- NA
+        new_pairs$dam_rfid <- NA
+        new_pairs$sire_rfid <- NA
+
+        add_new_pairs <- data.frame(matrix(ncol = length(keep_cols), nrow = nrow(new_pairs)))
+        colnames(add_new_pairs) <- keep_cols
+
+        # save novel pairings to the new df
+        add_new_pairs$generation <- proposed_pairs$generation[1]
+        add_new_pairs$breederpair <- new_pairs$breederpair
+        add_new_pairs$kinship <- format(round(new_pairs$kinship, 4), nsmall=4)
+        add_new_pairs$dam_animalid <- new_pairs$paired_dam
+        add_new_pairs$dam_rfid <- as.character(colony_df$rfid[match(new_pairs$paired_dam, colony_df$animalid)])
+        add_new_pairs$sire_animalid <- new_pairs$paired_sire
+        add_new_pairs$sire_rfid <- as.character(colony_df$rfid[match(new_pairs$paired_sire, colony_df$animalid)])
+        add_new_pairs$dam_accessid <- sapply(new_pairs$paired_dam, animalid_to_accessid)
+        add_new_pairs$sire_accessid <- sapply(new_pairs$paired_sire, animalid_to_accessid)
+        default_comment <- 'novel pairing assigned using breedHS'
+        add_new_pairs$comments <- merge_comments(default_comment, new_pairs$comments)
+        
+        # append novel pairings to the breeder file
+        pairs <- rbind(pairs, add_new_pairs)
+
+    } # end of new_pairs
 
     if (!is.null(outdir)) {
         datestamp <- format(Sys.time(),'%Y%m%d')
-        outfile <- paste0(pop, '_gen', gen, '_', gen+1, '_breeders_final.csv')
+        outfile <- paste0(pop, '_gen', gen, '_', gen+1, '_breeders_final_', datestamp, '.csv')
         write.csv(pairs, file.path(outdir, outfile), row.names=F, quote=F, na='')
         cat('Saved final breeders file to', file.path(outdir, outfile), '\n')
     }
     return(pairs)
-
 }
