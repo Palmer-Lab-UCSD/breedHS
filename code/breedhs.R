@@ -4,6 +4,8 @@
 library(tools)
 source("kinship.R")
 source("find_mates.R")
+source("hsw_utils.R")
+source("wfu_utils.R")
 
 encode.sex <- function(ped) {
   ped[,4] = as.character(ped[,4])
