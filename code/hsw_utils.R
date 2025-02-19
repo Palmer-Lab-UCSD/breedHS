@@ -365,7 +365,7 @@ wfu_into_hsw_gen <- function(hsw_raw,   # an HSW assignment sheet (csv) w/ breed
 
 
 # format a breeder file to assist with pairing in the HSW colony
-create_breeder_file <- function(
+create_hsw_breeder_file <- function(
     pairs,          # R dataframe or path to csv, as output by select.breeders, dam/sire must be animal IDs
     df,             # colony dataframe or assignment file
     wfu_ss=NULL,    # WFU shipping sheet, if pairing with shipped WFU rats
@@ -1340,4 +1340,60 @@ concat_peds <- function(
     outfile <- file.path(directory, paste0(outstem, min_gen, '_', max_gen, '.csv'))
     write.csv(full_ped, outfile, row.names=F, quote=F, na='')
     cat('Concatenated pedigree saved to', outfile, '\n')
+}
+
+
+# create a map for HSW IDs used in a merged pedigree
+map_merged_ids_hsw <- function(
+    merged_ped, # path to a complete merged pedigree
+    merged_stem,
+    dir_1,
+    stem_1,
+    first_gen_1,
+    last_gen_1,
+    dir_2,
+    stem_2,
+    first_gen_2,
+    last_gen_2,
+    out_dir=NULL)
+{
+
+    merged_ped <- read.csv(merged_ped)
+    
+    ped1 <- write.complete.ped(
+        first_gen = first_gen_1,
+        last_gen = last_gen_1,
+        data_dir = dir_1,
+        file_stem = stem_1,
+        save_file = FALSE)
+
+    ped2 <- write.complete.ped(
+        first_gen = first_gen_2,
+        last_gen = last_gen_2,
+        data_dir = dir_2,
+        file_stem = stem_2,
+        save_file = FALSE)
+
+    use_cols <- c(1,6,7)
+    hsw_cols <- c('id','rfid','animalid')
+    ped1 <- ped1[,use_cols]
+    ped2 <- ped2[,use_cols]
+    colnames(ped1) <- hsw_cols
+    ped_all <- rbind(ped1, ped2)
+
+    id_map <- data.frame(
+        generation = merged_ped$generation,
+        merged_id = merged_ped$id,
+        accessid = merged_ped$true_id)
+
+    id_map <- merge(id_map, ped_all, by.x='accessid', by.y='id')
+    id_map <- id_map[,c('generation','merged_id','accessid','animalid','rfid')]
+    id_map <- id_map[order(as.numeric(id_map$merged_id)),]
+    id_map <- id_map[!duplicated(id_map$merged_id),]
+    
+    filename <- paste0(merged_stem, '_id_map.csv')
+    outfile <- file.path(out_dir, filename)
+    write.csv(id_map, outfile, row.names=F, quote=F, na='')
+    cat('ID map written to', outfile, '\n')
+    return(id_map)
 }
