@@ -1390,3 +1390,62 @@ map_merged_ids_hsw <- function(
     cat('ID map written to', outfile, '\n')
     return(id_map)
 }
+
+
+reate_hsw_shipping_sheet <- function(
+    pairs, # R dataframe or csv path, as output by select.breeders, dam/sire must be animal IDs
+    assignments,    # HSW colony assignments for the current generation of rats to be sent
+    n_ship = NULL, # the total number of rats to be shipped (must be <= nrow(pairs)
+    outdir=NULL
+) {
+    if (class(pairs) == 'data.frame') {
+        pairs <- pairs
+    } else if (class(pairs) == 'character') {
+        pairs <- read.csv(pairs, na.str=c('','NA','NaN','nan'))
+    } else if (sum(!names(pairs) %in% c('pairs','file')) == 0) {
+        pairs <- pairs$pairs
+    }
+    if (file.exists(assignments)) {    
+        assignments <- read.csv(assignments)
+    }
+    gen <- assignments$generation[1]
+    breeders <- assignments[assignments$assignment == 'hsw_breeders',]
+    
+    ss <- data.frame(
+        cage = NA,
+        hsw_generation = rep(gen, nrow(pairs)),
+        animalid = pairs$sire
+    )
+    
+    # get metadata for paired IDs
+    ss$accessid <- sapply(ss$animalid, function(x) {animalid_to_accessid(x)} )
+    ss$rfid <- as.character(sapply(ss$animalid, function(x) { breeders$rfid[breeders$animalid == x] }))
+    ss$sex <- sapply(ss$animalid, function(x) { breeders$sex[breeders$animalid == x] })
+    ss$coatcolor <- sapply(ss$animalid, function(x) { breeders$coatcolor[breeders$animalid == x] })
+    ss$earpunch <- sapply(ss$animalid, function(x) { breeders$earpunch[breeders$animalid == x] })
+    ss$dob <- sapply(ss$animalid, function(x) { breeders$dob[breeders$animalid == x] })
+    ss$dow <- sapply(ss$animalid, function(x) { breeders$dob[breeders$animalid == x] })
+    ss$breederpair <- sapply(ss$animalid, function(x) { breeders$breederpair[breeders$animalid == x] })
+    ss$dam <- sapply(ss$animalid, function(x) { breeders$dam[breeders$animalid == x] })
+    ss$sire <- sapply(ss$animalid, function(x) { breeders$sire[breeders$animalid == x] })
+
+    # append non-paired IDs to include in the shipment
+    n_extras <- n_ship - nrow(pairs)
+    extra_bps <- ss$breederpair[1:n_extras]
+    extra_rats <- breeders[breeders$breederpair %in% extra_bps,]
+    colnames(extra_rats)[which(colnames(extra_rats)=='generation')] <- 'hsw_generation'
+    extra_rats$cage <- NA
+    extra_rats <- extra_rats[,colnames(ss)]
+
+    # subset one rat per extra breederpair
+    rows_to_keep <- ave(seq_len(nrow(extra_rats)), extra_rats$breederpair, FUN = function(x) {
+    sample(c(TRUE, rep(FALSE, length(x) - 1)), length(x))
+    })
+    extra_rats <- extra_rats[rows_to_keep == 1,]
+
+    ss <- rbind(ss, extra_rats)
+
+    outfile <- file.path(outdir, paste0('hsw_gen', gen, '_breeders_for_wfu.csv'))
+    write.csv(ss, outfile, row.names=F, quote=F, na='')
+                              
+}
