@@ -188,9 +188,8 @@ find.ped.errors <- function(first_gen,  # the desired starting generation
           }
       }
       if (return_ids) {
-          return(list(missing_ids = missing_ids,
+          return(list(missing_parents = missing_parents,
                       empty_parents = empty_parents))
-          return(empty_parents)
       }
   }
 }
@@ -295,7 +294,7 @@ select.breeders <- function(first_gen,              # first generation of the pe
   MAX_ROUNDS <- 10  # Maximum number of rounds to attempt
   
   # format pedigree files into one pedigree
-  ped.out <- format.pedigree(first_gen, last_gen, data_dir, file_stem, print_errors=T)
+  ped.out <- format.pedigree(first_gen, last_gen, data_dir, file_stem, print_errors=F)
   ped.tmp <- ped.out$ped.tmp
   ped <- ped.out$ped
   
@@ -855,6 +854,8 @@ merge.pedigrees <- function(
     # construct named vectors of exchanges
     pop1_exchanges <- name.exchanges(pop1_sent, pop1_received)
     pop2_exchanges <- name.exchanges(pop2_sent, pop2_received)
+    last_pop1_exchange <- as.numeric(pop1_exchanges[length(pop1_exchanges)])
+    last_pop2_exchange <- as.numeric(pop2_exchanges[length(pop2_exchanges)])
     
     # format pedigrees for each population
     pop1_ped <- format.pedigree.for.merge(first_gen_1, last_gen_1, dir_1, stem_1)
@@ -872,6 +873,10 @@ merge.pedigrees <- function(
         sending_exchanges <- pop2_exchanges
         receiving_all_gens <- pop1_all_gens    
         receiving_history <- ex_2_1 
+        last_receiving_gen <- last_gen_1
+        last_receiving_exchange <- last_pop1_exchange
+        last_sending_gen <- last_gen_2
+        last_sending_exchange <- last_pop2_exchange
     } else if (merge_into == 2) {
         receiving_pop <- 'pop2'
         sending_pop <- 'pop1'
@@ -881,6 +886,11 @@ merge.pedigrees <- function(
         sending_exchanges <- pop1_exchanges
         receiving_all_gens <- pop2_all_gens    
         receiving_history <- ex_1_2
+        last_receiving_gen <- last_gen_2
+        last_receiving_exchange <- last_pop2_exchange
+        last_sending_gen <- last_gen_1
+        last_sending_exchange <- last_pop1_exchange
+        
     }
     
     received_gens <- receiving_exchanges[names(receiving_exchanges) %in% c('received','exchanged')]
@@ -890,6 +900,13 @@ merge.pedigrees <- function(
     sent_gens <- as.character(receiving_history[receiving_history[,2] %in% received_gens, 1])
     sent_prior_gens <- as.character(as.numeric(sent_gens) - 1)
 
+    # if the current generation is an exchange generation, remove it from eligibility for merging
+    # (exchanged animals should be incorporated into the "official" pedigree for the receiving population)
+    # using either hsw_into_wfu_raw() or wfu_into_hsw_raw()
+    if (last_receiving_exchange == last_receiving_gen) {
+        receiving_gens_to_merge <- receiving_gens_to_merge[-length(receiving_gens_to_merge)]
+    }
+    
     # incorporate simple generations (that don't need merging) into the merged pedigree
     merged_ped <- list()
     for (gen in receiving_all_gens) {
@@ -910,6 +927,10 @@ merge.pedigrees <- function(
         sent_ped <- sending_ped[[sent_gen]]
         sent_ped$alt_generation <- sent_gen
         sent_ped$generation <- gen
+        # if the current generation is an exchange generation, remove it from eligibility for merging
+        if (last_receiving_exchange == last_receiving_gen) {
+            sent_ped <- NULL
+        }
         ped <- rbind(received_ped, sent_ped)
         ped <- ped[!duplicated(ped[,1]),]
         merged_ped[[gen]] <- ped
@@ -968,124 +989,125 @@ merge.pedigrees <- function(
                                
     # ensure that all generations are present
     check <- sum(names(merged_ped) != receiving_all_gens)
-                               
+
     if (check > 0) {
         cat('Error: Not all', receiving_pop, 'generations were included in the merged pedigree! \n')
-    } else {
+    } 
 
-        # order each generation by ID, then assign new IDs to enable kinship matrix construction
-        # by breedail in the correct order
-        for (ped in merged_ped) {
-            ped$true_id <- ped$id
-            ped$sire_id <- ped$sire
-            ped$dam_id <- ped$dam
-            gen <- as.character(ped$generation[1])
-            ped <- ped[order(as.numeric(ped$id)),]
-            
-            for (i in 1:nrow(ped)){
-                
-                i_chr <- nchar(i)
-                n_zeros <- 4 - i_chr
-                zero_str <- paste0(rep('0', n_zeros),collapse='')
-                new_id <- as.numeric(paste0(gen, zero_str, i))
-                ped$id[i] <- new_id
-                id <- ped$id[i]
-                rownames(ped) <- NULL
-            }
-            merged_ped[[gen]] <- ped
-        } # end of ped (generation) loop
+    # order each generation by ID, then assign new IDs to enable kinship matrix construction
+    # by breedail in the correct order
+    for (ped in merged_ped) {
+        ped$true_id <- ped$id
+        ped$sire_id <- ped$sire
+        ped$dam_id <- ped$dam
+        gen <- as.character(ped$generation[1])
+        ped <- ped[order(as.numeric(ped$id)),]
         
-        # change all instances of a new ID throughout the pedigree
-        all_ids <- unlist(lapply(merged_ped, function(df) df$id))
-        all_true_ids <- unlist(lapply(merged_ped, function(df) df$true_id))
-        names(all_ids) <- NULL
-        names(all_true_ids) <- NULL
-        dups <- duplicated(all_true_ids)
-        all_ids <- all_ids[!dups]
-        all_true_ids <- all_true_ids[!dups]
-        names(all_true_ids) <- all_ids
-
-        for (p in 1:length(merged_ped)) {
-            ped <- merged_ped[[p]]
-            ped$sire <- names(all_true_ids[match(ped$sire, all_true_ids)])
-            ped$dam <- names(all_true_ids[match(ped$dam, all_true_ids)])
-            if (p == 1) {
-                ped$sire <- 0
-                ped$dam <- 0
-            }
-            merged_ped[[p]] <- ped
-        }
-
-        # write pedigree generations to file
-        if (dir.exists(out_dir) == FALSE) {
-            dir.create(out_dir, showWarnings = TRUE)
-        }
-
-        min_gen <- min(as.numeric(receiving_all_gens))
-        max_gen <- max(as.numeric(receiving_all_gens))
-        max_nchar <- nchar(max_gen)
-        for (gen in receiving_all_gens) {
-            ped <- merged_ped[[gen]]
-            gen_nchar <- nchar(gen)
-            n_zeros <- max_nchar - gen_nchar
+        for (i in 1:nrow(ped)){
+            
+            i_chr <- nchar(i)
+            n_zeros <- 4 - i_chr
             zero_str <- paste0(rep('0', n_zeros),collapse='')
-            gen_str <- paste0(zero_str, gen)
-            file.name <- file.path(out_dir, paste0(out_stem, gen_str, '.csv'))
-            write.csv(ped, file.name, row.names=F, quote=F, na='?')
+            new_id <- as.numeric(paste0(gen, zero_str, i))
+            ped$id[i] <- new_id
+            id <- ped$id[i]
+            rownames(ped) <- NULL
         }
-                                    
-        ped_df <- do.call(rbind, merged_ped)
-        ped_df$sex[ped_df$sex == 0] <- 'F'  # Female = 0
-        ped_df$sex[ped_df$sex == 1] <- 'M'  # Male = 1
-        outstr <- paste0(out_stem, '_0', min_gen, '_', max_gen, '_complete_ped.csv')
-        outfile <- file.path(out_dir, outstr)
-        write.csv(ped_df, outfile, row.names=F, quote=F, na='?')
-        cat('Merged pedigree written to', outfile, '\n')
-        cat('Individual merged pedigree files saved in', paste0(out_dir,'/'), '\n')
-          
-        # write an ID map for the merged pedigree
-        id_map <- map.merged.ids(pop = merge_into)
+        merged_ped[[gen]] <- ped
+    } # end of ped (generation) loop
+        
+  # change all instances of a new ID throughout the pedigree
+  all_ids <- unlist(lapply(merged_ped, function(df) df$id))
+  all_true_ids <- unlist(lapply(merged_ped, function(df) df$true_id))
+  names(all_ids) <- NULL
+  names(all_true_ids) <- NULL
+  dups <- duplicated(all_true_ids)
+  all_ids <- all_ids[!dups]
+  all_true_ids <- all_true_ids[!dups]
+  names(all_true_ids) <- all_ids
 
-        if (as_df) {
-            merged_ped <- do.call(rbind, merged_ped)  
-            rownames(merged_ped) <- NULL
-        }
-        return(list(pedigree = merged_ped, id.map = id_map, file = outfile))
-    }
+  for (p in 1:length(merged_ped)) {
+      ped <- merged_ped[[p]]
+      ped$sire <- names(all_true_ids[match(ped$sire, all_true_ids)])
+      ped$dam <- names(all_true_ids[match(ped$dam, all_true_ids)])
+      if (p == 1) {
+          ped$sire <- 0
+          ped$dam <- 0
+      }
+      merged_ped[[p]] <- ped
+  }
+
+  # write pedigree generations to file
+  if (dir.exists(out_dir) == FALSE) {
+      dir.create(out_dir, showWarnings = TRUE)
+  }
+
+  min_gen <- min(as.numeric(receiving_all_gens))
+  max_gen <- max(as.numeric(receiving_all_gens))
+  max_nchar <- nchar(max_gen)
+  for (gen in receiving_all_gens) {
+      ped <- merged_ped[[gen]]
+      gen_nchar <- nchar(gen)
+      n_zeros <- max_nchar - gen_nchar
+      zero_str <- paste0(rep('0', n_zeros),collapse='')
+      gen_str <- paste0(zero_str, gen)
+      file.name <- file.path(out_dir, paste0(out_stem, gen_str, '.csv'))
+      write.csv(ped, file.name, row.names=F, quote=F, na='?')
+  }
+                              
+  ped_df <- do.call(rbind, merged_ped)
+  ped_df$sex[ped_df$sex == 0] <- 'F'  # Female = 0
+  ped_df$sex[ped_df$sex == 1] <- 'M'  # Male = 1
+  outstr <- paste0(out_stem, '_0', min_gen, '_', max_gen, '_complete_ped.csv')
+  outfile <- file.path(out_dir, outstr)
+  write.csv(ped_df, outfile, row.names=F, quote=F, na='?')
+  cat('Merged pedigree written to', outfile, '\n')
+  cat('Individual merged pedigree files saved in', paste0(out_dir,'/'), '\n')
+
+  # internal function: write an ID map for a merged pedigree
+  map.merged.ids <- function(pop){
+      if(pop==1) {
+          id_map <- map_merged_ids_wfu(
+              merged_ped = outfile,
+              merged_stem = out_stem,
+              dir_1 = dir_1,
+              stem_1 = stem_1,
+              first_gen_1 = first_gen_1,
+              last_gen_1 = last_gen_1,
+              dir_2 = dir_2,
+              stem_2 = stem_2,
+              first_gen_2 = first_gen_2,
+              last_gen_2 = last_gen_2,
+              out_dir = out_dir)
+      } else if (pop==2) {
+          id_map <- map_merged_ids_hsw(
+              merged_ped = outfile,
+              merged_stem = out_stem,
+              dir_1 = dir_1,
+              stem_1 = stem_1,
+              first_gen_1 = first_gen_1,
+              last_gen_1 = last_gen_1,
+              dir_2 = dir_2,
+              stem_2 = stem_2,
+              first_gen_2 = first_gen_2,
+              last_gen_2 = last_gen_2,
+              out_dir = out_dir)
+      }
+      return(id_map)
+  }
+
+  # write an ID map for the merged pedigree
+  id_map <- map.merged.ids(pop = merge_into)
+
+  if (as_df) {
+      merged_ped <- do.call(rbind, merged_ped)  
+      rownames(merged_ped) <- NULL
+  }
+
+  return(list(pedigree = merged_ped, id.map = id_map, file = ifelse(as_df, outfile, NULL)))
+
 }
 
-
-# write an ID map for a merged pedigree
-map.merged.ids <- function(pop){
-    if(pop==1) {
-        id_map <- map_merged_ids_wfu(
-            merged_ped = outfile,
-            merged_stem = out_stem,
-            dir_1 = dir_1,
-            stem_1 = stem_1,
-            first_gen_1 = first_gen_1,
-            last_gen_1 = last_gen_1,
-            dir_2 = dir_2,
-            stem_2 = stem_2,
-            first_gen_2 = first_gen_2,
-            last_gen_2 = last_gen_2,
-            out_dir = out_dir)
-    } else if (pop==2) {
-        id_map <- map_merged_ids_hsw(
-            merged_ped = outfile,
-            merged_stem = out_stem,
-            dir_1 = dir_1,
-            stem_1 = stem_1,
-            first_gen_1 = first_gen_1,
-            last_gen_1 = last_gen_1,
-            dir_2 = dir_2,
-            stem_2 = stem_2,
-            first_gen_2 = first_gen_2,
-            last_gen_2 = last_gen_2,
-            out_dir = out_dir)
-    }
-    return(id_map)
-}
 
 
 # write multiple pedigree files to one complete pedigree file
