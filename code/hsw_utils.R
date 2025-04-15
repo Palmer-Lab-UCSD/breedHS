@@ -160,11 +160,11 @@ assignment_to_raw_ped <- function(
         ped <- rbind(ped, wfu)
     }
     
-    write.csv(ped, file.path(outdir, paste0('hsw_raw_gen', gen, '.csv')),
-              row.names=F, quote=F, na='')
+    outfile <-  file.path(outdir, paste0('hsw_raw_gen', gen, '.csv')) 
+    write.csv(ped, outfile, row.names=F, quote=F, na='')
+    cat('Raw pedigree written to', outfile, '\n')
     
-    cat('Raw pedigree written to', file.path(outdir, paste0('hsw_raw_gen', gen, '.csv')), '\n')
-    
+    return(outfile)
 }
 
 # function to produce a breedail pedigree from breeders assignments
@@ -869,10 +869,10 @@ plot_k_hist <- function(
     quantiles <- quantile(kinship, probs = seq(0, 1, 0.25))
 
     if (sample == 'all') {
-        outfile <- file.path(out_dir, paste0('hsw_gen', gen, '_k_hist_all.png'))
+        outfile <- file.path(out_dir, paste0(pop, '_gen', gen, '_k_hist_all.png'))
         binsize = 60
     } else if (sample == 'breederpairs') {
-        outfile <- file.path(out_dir, paste0('hsw_gen', gen, '_k_hist_n', length(kinship), '_breeders.png'))
+        outfile <- file.path(out_dir, paste0(pop, '_gen', gen, '_k_hist_n', length(kinship), '_breeders.png'))
         binsize = 30
     }
 
@@ -915,6 +915,7 @@ plot_k_network <- function(
     kinship, # path to the pairwise kinship or breederpair csv, or a corresponding R dataframe
     pop, # the population name, eg 'hsw' or 'wfu'
     gen, # the generation number
+    exchange = FALSE, # whether this is an exchange generation
     sample = c('all','breederpairs'), # which sample of rats (ie which file type) to process
     out_dir # output directory path
 ) {
@@ -928,17 +929,32 @@ plot_k_network <- function(
     }
 
     if (sample == 'all') {
-        outfile <- file.path(out_dir, paste0('hsw_gen', gen, '_k_net_all.png'))
+        outfile <- file.path(out_dir, paste0(pop, '_gen', gen, '_k_net_all.png'))
         title_str <- paste('(all', nrow(kinship), 'possible pairs)')
         kinship <- kinship[kinship$dam_fam != kinship$sire_fam,]
         lwd <- 0.2
 
     } else if (sample == 'breederpairs') {
-        outfile <- file.path(out_dir, paste0('hsw_gen', gen, '_k_net_n', nrow(kinship), '_breeders.png'))
+        outfile <- file.path(out_dir, paste0(pop, '_gen', gen, '_k_net_n', nrow(kinship), '_breeders.png'))
         title_str <- paste(paste0('(', nrow(kinship)), 'breeder pairs)')
-        kinship$dam_fam <- gsub('B','',sapply(kinship$dam_animalid, function(x) {unlist(strsplit(x, '_'))[2]}))
-        kinship$sire_fam <- gsub('B','',sapply(kinship$sire_animalid, function(x) {unlist(strsplit(x, '_'))[2]}))
         lwd <- 2
+        if (pop == 'hsw') {
+            kinship$dam_fam <- gsub('B','',sapply(kinship$dam_animalid, function(x) {unlist(strsplit(x, '_'))[2]}))
+            kinship$sire_fam <- gsub('B','',sapply(kinship$sire_animalid, function(x) {unlist(strsplit(x, '_'))[2]}))
+            if (exchange) {
+                kinship$dam_fam <- paste0('HSW_', kinship$dam_fam)
+                kinship$sire_fam <- sapply(kinship$sire_animalid, function(x) {gsub(".*[0-9]([0-9]{2})$", "\\1", x)})
+                kinship$sire_fam <- paste0('WFU_', kinship$sire_fam)
+            }
+        } else if (pop == 'wfu') {
+            kinship$dam_fam <- sapply(kinship$dam_animalid, function(x) {gsub(".*[0-9]([0-9]{2})$", "\\1", x)})
+            kinship$sire_fam <- sapply(kinship$sire_animalid, function(x) {gsub(".*[0-9]([0-9]{2})$", "\\1", x)})
+            if (exchange) {
+                kinship$dam_fam <- paste0('WFU_', kinship$dam_fam)
+                kinship$sire_fam <- gsub('B','HSW_',sapply(kinship$sire_animalid, function(x) {unlist(strsplit(x, '_'))[2]}))                
+            }
+            
+        }
     }
 
     main_title <- paste(toupper(pop), paste0('gen', gen), 'pairwise kinship')
@@ -950,10 +966,12 @@ plot_k_network <- function(
     # positions each family around the circle
     fam_pos <- data.frame(
         fam_id = fam_ids,
-        angle = seq(0, 2*pi, length.out = n_fams + 1)[1:n_fams],
+        # angle = seq(0, 2*pi, length.out = n_fams + 1)[1:n_fams],
+        angle = seq(0, 360, length.out = n_fams + 1)[1:n_fams],
         x = cos(seq(0, 2*pi, length.out = n_fams + 1)[1:n_fams]),
         y = sin(seq(0, 2*pi, length.out = n_fams + 1)[1:n_fams])
     )
+    fam_pos$angle <- ifelse(fam_pos$angle > 90 & fam_pos$angle <= 270, fam_pos$angle + 180, fam_pos$angle)
 
     # create connections between fams
     connections <- merge(kinship, fam_pos, by.x = 'dam_fam', by.y = 'fam_id')
@@ -977,7 +995,7 @@ plot_k_network <- function(
     # family labels
     geom_text(
       data = fam_pos,
-      aes(x = x * 1.1, y = y * 1.1, label = fam_id), size = 3.5) +
+      aes(x = x * 1.1, y = y * 1.1, label = fam_id, angle = angle), size = 3.5) +
     # color lines by K
     scale_color_gradient(
       low = viridis(1,1,0),
@@ -1367,11 +1385,9 @@ map_merged_ids_hsw <- function(
         file_stem = stem_2,
         save_file = FALSE)
 
-    use_cols <- c(1,6,7)
-    hsw_cols <- c('id','rfid','animalid')
+    use_cols <- c('id','rfid','animalid')
     ped1 <- ped1[,use_cols]
     ped2 <- ped2[,use_cols]
-    colnames(ped1) <- hsw_cols
     ped_all <- rbind(ped1, ped2)
 
     id_map <- data.frame(
@@ -1392,11 +1408,11 @@ map_merged_ids_hsw <- function(
 }
 
 
-reate_hsw_shipping_sheet <- function(
-    pairs, # R dataframe or csv path, as output by select.breeders, dam/sire must be animal IDs
-    assignments,    # HSW colony assignments for the current generation of rats to be sent
-    n_ship = NULL, # the total number of rats to be shipped (must be <= nrow(pairs)
-    outdir=NULL
+create_hsw_shipping_sheet <- function(
+    pairs,        # R dataframe or csv path, as output by select.breeders, dam/sire must be animal IDs
+    assignments,  # HSW colony assignments for the current generation of rats to be sent
+    n_ship,       # the total number of rats to be shipped (must be <= nrow(pairs)
+    outdir
 ) {
     if (class(pairs) == 'data.frame') {
         pairs <- pairs
@@ -1409,14 +1425,18 @@ reate_hsw_shipping_sheet <- function(
         assignments <- read.csv(assignments)
     }
     gen <- assignments$generation[1]
-    breeders <- assignments[assignments$assignment == 'hsw_breeders',]
-    
+    breeders <- assignments[assignments$assignment == 'hsw_breeders' & assignments$sex=='M',]
+    breeders$cage <- NA
+    breeders$usage <- 'breeder'
+    colnames(breeders)[which(colnames(breeders)=='generation')] <- 'hsw_generation'
+
     ss <- data.frame(
         cage = NA,
-        hsw_generation = rep(gen, nrow(pairs)),
+        usage = 'breeder',
+        hsw_generation = gen,
         animalid = pairs$sire
     )
-    
+
     # get metadata for paired IDs
     ss$accessid <- sapply(ss$animalid, function(x) {animalid_to_accessid(x)} )
     ss$rfid <- as.character(sapply(ss$animalid, function(x) { breeders$rfid[breeders$animalid == x] }))
@@ -1429,23 +1449,49 @@ reate_hsw_shipping_sheet <- function(
     ss$dam <- sapply(ss$animalid, function(x) { breeders$dam[breeders$animalid == x] })
     ss$sire <- sapply(ss$animalid, function(x) { breeders$sire[breeders$animalid == x] })
 
-    # append non-paired IDs to include in the shipment
+    # get all leftover breeders available to send as extras
     n_extras <- n_ship - nrow(pairs)
-    extra_bps <- ss$breederpair[1:n_extras]
-    extra_rats <- breeders[breeders$breederpair %in% extra_bps,]
-    colnames(extra_rats)[which(colnames(extra_rats)=='generation')] <- 'hsw_generation'
-    extra_rats$cage <- NA
-    extra_rats <- extra_rats[,colnames(ss)]
+    extra_rats <- breeders[!breeders$animalid %in% ss$animalid, colnames(ss)]
+    extra_rats$usage <- 'extra'
 
-    # subset one rat per extra breederpair
-    rows_to_keep <- ave(seq_len(nrow(extra_rats)), extra_rats$breederpair, FUN = function(x) {
-    sample(c(TRUE, rep(FALSE, length(x) - 1)), length(x))
-    })
-    extra_rats <- extra_rats[rows_to_keep == 1,]
-
-    ss <- rbind(ss, extra_rats)
+    # sample n_extras rats (one per breederpair) to include in the shipping sheet
+    keep_fams <- sample(unique(extra_rats$breederpair), n_extras)
+    send_extras <- data.frame()
+    for (fam in keep_fams) {
+        fam_males <- extra_rats[extra_rats$breederpair == fam, ]      
+        send_male <- fam_males[sample(nrow(fam_males), 1), ]
+        send_extras <- rbind(send_extras, send_male)
+    }
+    ss <- rbind(ss, send_extras)
 
     outfile <- file.path(outdir, paste0('hsw_gen', gen, '_breeders_for_wfu.csv'))
     write.csv(ss, outfile, row.names=F, quote=F, na='')
-                              
+    cat('HSW shipping sheet saved to', outfile, '\n')
+    return(list(shipping_sheet = ss, file = outfile))
+}
+
+final_hsw_breeders_to_raw_ped <- function(
+    pairs,   # path or dataframe - final breeders file
+    colony_df, # path or dataframe - the current colony dataframe
+    stem,
+    outdir # where to save the pedigree file 
+) {
+    if (class(pairs)=='character') {
+        pairs <- read.csv(pairs)
+    }
+    if (class(colony_df)=='character') {
+        colony_df <- read.csv(colony_df)
+    }
+
+    paired_rfids <- c(pairs$dam_rfid, pairs$sire_rfid)
+    ped_cols <- c('generation','rfid','animalid','accessid','sex','coatcolor','earpunch','dam','sire','comments')
+    ped <- colony_df[colony_df$rfid %in% paired_rfids, ped_cols]
+    ped <- ped[order(ped$animalid),]
+    gen <- ped$generation[1]
+
+    outfile <- file.path(outdir, paste0(stem, gen, '.csv'))
+    write.csv(ped, outfile, row.names=F, quote=F, na='')
+    cat('Raw HS West pedigree saved to', outfile, '\n')
+    
+    return(ped)
 }
