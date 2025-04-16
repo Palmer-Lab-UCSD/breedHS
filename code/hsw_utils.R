@@ -495,6 +495,9 @@ count_breeder_pairs <- function(
     paired.but.not.assigned <- setdiff(paired, assigned)
     assigned.but.not.paired <- setdiff(assigned, paired)
 
+    if (length(paired.but.not.assigned) == 0) {paired.but.not.assigned <- NULL}
+    if (length(assigned.but.not.paired) == 0) {assigned.but.not.paired <- NULL}
+
     # dataframe counting all breederpairs represented in assignments
     f_assigned <- as.matrix(table(assigned_breeders$breederpair, assigned_breeders$sex))[,1]
     m_assigned <- as.matrix(table(assigned_breeders$breederpair, assigned_breeders$sex))[,2]
@@ -521,23 +524,28 @@ count_breeder_pairs <- function(
         assigned.breederpairs[(assigned.breederpairs$females_assigned < 1) |
                                        (assigned.breederpairs$males_assigned < 1),]
 
-    # remove IDs from needs.pairing/needs.assignment lists if there were no M or F to begin with
-    needs_assignment <- c()
-    for (i in 1:nrow(breederpairs.need.assignment)) {
-        pair <- breederpairs.need.assignment$breederpair[i]
-        total_males <- all_breederpairs[all_breederpairs$breederpair==pair,]$males
-        total_females <- all_breederpairs[all_breederpairs$breederpair==pair,]$females
-        males_assigned <- assigned.breederpairs[assigned.breederpairs$breederpair==pair,]$males_assigned
-        females_assigned <- assigned.breederpairs[assigned.breederpairs$breederpair==pair,]$females_assigned
-    
-        if ((total_males > 0) & (males_assigned < 1)) {
-            needs_assignment <- c(needs_assignment, pair)
+    print(nrow(breederpairs.need.assignment))
+    if (nrow(breederpairs.need.assignment) > 0) {
+        # remove IDs from needs.pairing/needs.assignment lists if there were no M or F to begin with
+        needs_assignment <- c()
+        for (i in 1:nrow(breederpairs.need.assignment)) {
+            pair <- breederpairs.need.assignment$breederpair[i]
+            total_males <- all_breederpairs[all_breederpairs$breederpair==pair,]$males
+            total_females <- all_breederpairs[all_breederpairs$breederpair==pair,]$females
+            males_assigned <- assigned.breederpairs[assigned.breederpairs$breederpair==pair,]$males_assigned
+            females_assigned <- assigned.breederpairs[assigned.breederpairs$breederpair==pair,]$females_assigned
+
+            if ((total_males > 0) & (males_assigned < 1)) {
+                needs_assignment <- c(needs_assignment, pair)
+            }
+            if ((total_females > 0) & (females_assigned < 1)) {
+                needs_assignment <- c(needs_assignment, pair)
+            }
         }
-        if ((total_females > 0) & (females_assigned < 1)) {
-            needs_assignment <- c(needs_assignment, pair)
-        }
+        breederpairs.need.assignment <- breederpairs.need.assignment[needs_assignment,]
+    } else {
+        breederpairs.need.assignment <- NULL
     }
-    breederpairs.need.assignment <- breederpairs.need.assignment[needs_assignment,]
 
     # dataframe counting bps with offspring assigned to hsw_breeders that still need to be paired
     if (!is.null(paired.breederpairs)) {
@@ -548,27 +556,31 @@ count_breeder_pairs <- function(
         breederpairs.need.pairing <- assigned.breederpairs
     }
 
-    needs_pairing <- c()
-    for (i in 1:nrow(breederpairs.need.pairing)) {
-        pair <- breederpairs.need.pairing$breederpair[i]
-        total_males <- all_breederpairs[all_breederpairs$breederpair==pair,]$males
-        total_females <- all_breederpairs[all_breederpairs$breederpair==pair,]$females
-        males_paired <- paired.breederpairs[paired.breederpairs$breederpair==pair,]$males_paired
-        females_paired <- paired.breederpairs[paired.breederpairs$breederpair==pair,]$females_paired
-    
-        if (!is.null(males_paired)) {
-            if ((total_males > 0) & (males_paired < 1)) {
-                needs_pairing <- c(needs_pairing, pair)
+    if (nrow(breederpairs.need.pairing) > 0) {
+        needs_pairing <- c()
+        for (i in 1:nrow(breederpairs.need.pairing)) {
+            pair <- breederpairs.need.pairing$breederpair[i]
+            total_males <- all_breederpairs[all_breederpairs$breederpair==pair,]$males
+            total_females <- all_breederpairs[all_breederpairs$breederpair==pair,]$females
+            males_paired <- paired.breederpairs[paired.breederpairs$breederpair==pair,]$males_paired
+            females_paired <- paired.breederpairs[paired.breederpairs$breederpair==pair,]$females_paired
+        
+            if (!is.null(males_paired)) {
+                if ((total_males > 0) & (males_paired < 1)) {
+                    needs_pairing <- c(needs_pairing, pair)
+                }
+            }
+            if (!is.null(females_paired)) {
+                if ((total_females > 0) & (!is.null(females_paired)) & (females_paired < 1)) {
+                    needs_pairing <- c(needs_pairing, pair)
+                }
             }
         }
-        if (!is.null(females_paired)) {
-            if ((total_females > 0) & (!is.null(females_paired)) & (females_paired < 1)) {
-                needs_pairing <- c(needs_pairing, pair)
-            }
+        if (!is.null(needs_pairing)) {
+            breederpairs.need.pairing <- breederpairs.need.pairing[breederpairs.need.pairing$breederpair %in% needs_pairing,]
         }
-    }
-    if (!is.null(needs_pairing)) {
-        breederpairs.need.pairing <- breederpairs.need.pairing[breederpairs.need.pairing$breederpair %in% needs_pairing,]
+    } else {
+        breederpairs.need.pairing <- NULL
     }
     
     out <- list(all.breederpairs = all_breederpairs,
