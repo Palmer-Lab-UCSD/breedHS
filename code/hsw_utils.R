@@ -524,7 +524,6 @@ count_breeder_pairs <- function(
         assigned.breederpairs[(assigned.breederpairs$females_assigned < 1) |
                                        (assigned.breederpairs$males_assigned < 1),]
 
-    print(nrow(breederpairs.need.assignment))
     if (nrow(breederpairs.need.assignment) > 0) {
         # remove IDs from needs.pairing/needs.assignment lists if there were no M or F to begin with
         needs_assignment <- c()
@@ -822,6 +821,7 @@ best_alt_pairs <- function(
 
         # combine replacement lists for all IDs that need replacing 
         alt_pairs <- do.call(rbind, alt_pair_list)
+        alt_pairs <- alt_pairs[with(alt_pairs, order(animalid, kinship),]
         out$alt_pairs <- alt_pairs
         outfile <- file.path(outdir, paste0('alternative_pairs_n',n_best,'_',datestamp,'.csv'))
         write.csv(alt_pairs, outfile, row.names=F, quote=F, na='')
