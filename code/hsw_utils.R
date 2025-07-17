@@ -753,7 +753,7 @@ best_alt_pairs <- function(
                 to_pair_with_id = rep(mate_id, n_rows),
                 use_fam = k_replacements[[k_id_col]],
                 kinship = k_replacements$kinship,
-                paired_with = rep('NONE', n_rows),
+                replaced_with = rep('NONE', n_rows),
                 breederpair = rep('NONE', n_rows),
                 comments = rep(NA, n_rows),
                 dif_fam = rep(1, n_rows)) # column only used for sorting
@@ -764,7 +764,7 @@ best_alt_pairs <- function(
                 to_pair_with_id = mate_id,
                 use_fam = id_fam,
                 kinship = kinship[kinship[k_id_col]==id_fam & kinship[k_mate_col]==mate_fam,]$kinship,
-                paired_with = 'NONE',
+                replaced_with = 'NONE',
                 breederpair = 'NONE',
                 comments = NA,
                 dif_fam = 0) # column only used for sorting
