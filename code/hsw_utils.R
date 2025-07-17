@@ -156,7 +156,7 @@ assignment_to_raw_ped <- function(
             sire = gsub('_', '', wfu_ss['Sire']), 
             comments = NA
         )
-        wfu <- wfu[order(wfu$animalid)]
+        wfu <- wfu[order(wfu$animalid),]
         ped <- rbind(ped, wfu)
     }
     
@@ -164,6 +164,16 @@ assignment_to_raw_ped <- function(
     write.csv(ped, outfile, row.names=F, quote=F, na='')
     cat('Raw pedigree written to', outfile, '\n')
     
+    # concatenate all raw pedigree files into an updated single file
+    all_peds <- list.files(outdir, full.names=T, pattern='hsw_raw_gen')
+    all_peds <- lapply(all_peds, function(x) {read.csv(x)})
+    complete_ped <- do.call(rbind, all_peds)
+    complete_ped <- complete_ped[order(complete_ped$generation, complete_ped$animalid),]
+    datestamp <- format(Sys.time(),'%Y%m%d')
+    complete_ped_file <- file.path(outdir, paste0('hsw_raw_ped_complete_', datestamp, '.csv'))
+    write.csv(complete_ped, complete_ped_file, row.names=F, quote=F, na='')
+    cat('Complete HS West pedigree written to', complete_ped_file, '\n')
+
     return(outfile)
 }
 
@@ -602,7 +612,8 @@ best_alt_pairs <- function(
     n_best = 4, # the number of next-best IDs to return per ID that needs replacing
     ids_to_replace=NULL, # vector or path
     ids_to_pair=NULL, # vector or path
-    k_all=FALSE, # whether to return a kinship matrix for all available rats
+    save_k=FALSE, # whether to save a kinship matrix for all available rats
+    return_pairs=FALSE, # whether to return all identified pairs to the R console
     outdir
 ) {
     if (class(pairs)=='character') {
@@ -625,7 +636,6 @@ best_alt_pairs <- function(
         }
     }
     datestamp <- format(Sys.time(),'%Y%m%d')
-    out <- list()
 
     # get the breederpair combination for each possible pairing
     kinship$dam_fam <- sapply(kinship$dam_fam, function(x) {
@@ -668,9 +678,10 @@ best_alt_pairs <- function(
     # kinship of all possible combos still available to pair
     k_avail <- kinship[kinship$combo %in% avail_combos$combo,]
     k_avail <- k_avail[k_avail$dam_fam != k_avail$sire_fam,]
+    k_avail <- k_avail[order(k_avail$dam_fam, k_avail$kinship),]
     k_avail <- k_avail[,3:(ncol(k_avail)-1)] # drop specific animal IDs
 
-    if (k_all) {
+    if (save_k) {
         outfile <- file.path(outdir, paste0('kinship_all_avail_fams_',datestamp,'.csv'))
         write.csv(k_avail, outfile, row.names=F, quote=F, na='')
         cat('\nKinship for all available pairings written to', outfile, '\n')
@@ -738,8 +749,8 @@ best_alt_pairs <- function(
             }
 
             replacements <- data.frame(
-                id_to_pair = rep(mate_id, n_rows),
                 id_to_replace = rep(id, n_rows),
+                to_pair_with_id = rep(mate_id, n_rows),
                 use_fam = k_replacements[[k_id_col]],
                 kinship = k_replacements$kinship,
                 paired_with = rep('NONE', n_rows),
@@ -749,8 +760,8 @@ best_alt_pairs <- function(
             
             # add a first row using the same family as the replacement ID
             rep_same_fam <- data.frame(
-                id_to_pair = mate_id,
                 id_to_replace = id,
+                to_pair_with_id = mate_id,
                 use_fam = id_fam,
                 kinship = kinship[kinship[k_id_col]==id_fam & kinship[k_mate_col]==mate_fam,]$kinship,
                 paired_with = 'NONE',
@@ -765,9 +776,10 @@ best_alt_pairs <- function(
 
         # combine replacement lists for all IDs that need replacing 
         replacements <- do.call(rbind, replacements_list)
-        replacements <- replacements[with(replacements, order(id_to_replace, dif_fam, kinship)),]
+        replacements <- replacements[with(replacements, order(id_to_replace, kinship)),]
+        # replacements <- replacements[with(replacements, order(id_to_replace, dif_fam, kinship)),]
         replacements <- replacements[,1:(ncol(replacements)-1)] #drop dif_fam column
-        out$replacements <- replacements
+        out <- replacements
         outfile <- file.path(outdir, paste0('replacement_pairs_n',n_best,'_',datestamp,'.csv'))
         write.csv(replacements, outfile, row.names=F, quote=F, na='')
         cat('\nBest replacement pairings written to', outfile, '\n')
@@ -850,9 +862,10 @@ best_alt_pairs <- function(
 
         # combine replacement lists for all IDs that need replacing 
         alt_pairs <- do.call(rbind, alt_pair_list)
-        alt_pairs <- alt_pairs[with(alt_pairs, order(animalid, dif_fam, kinship)),]
+        alt_pairs <- alt_pairs[with(alt_pairs, order(animalid, kinship)),]
+        # alt_pairs <- alt_pairs[with(alt_pairs, order(animalid, dif_fam, kinship)),]
         alt_pairs <- alt_pairs[,1:(ncol(alt_pairs)-1)] #drop dif_fam column
-        out$alt_pairs <- alt_pairs
+        out <- alt_pairs
         outfile <- file.path(outdir, paste0('alternative_pairs_n',n_best,'_',datestamp,'.csv'))
         write.csv(alt_pairs, outfile, row.names=F, quote=F, na='')
         cat('\nBest alternative pairings written to', outfile, '\n')
@@ -883,10 +896,14 @@ best_alt_pairs <- function(
         new_pairs$comments <- NA
 
         # save best new pairs
-        out$new_pairs <- new_pairs
+        out <- new_pairs
         outfile <- file.path(outdir, paste0('new_pairs_n',n_best,'_',datestamp,'.csv'))
         write.csv(new_pairs, outfile, row.names=F, quote=F, na='')
         cat('\nTop', n_best, 'new pairings written to', outfile, '\n')
+    }
+
+    if (return_pairs) {
+        return(out)
     }
 }
 
@@ -1524,7 +1541,7 @@ create_hsw_shipping_sheet <- function(
 }
 
 final_hsw_breeders_to_raw_ped <- function(
-    pairs,   # path or dataframe - final breeders file
+    pairs,   # path or dataframe - final breeders file from the previous generation
     colony_df, # path or dataframe - the current colony dataframe
     stem,
     outdir # where to save the pedigree file 
