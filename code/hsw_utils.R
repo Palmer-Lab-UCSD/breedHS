@@ -1385,11 +1385,13 @@ final_breeder_file <- function(
 
     } # end of new_pairs
 
+    pairs$kinship <- format(round(pairs$kinship, 4), nsmall = 4)
+
     if (!is.null(outdir)) {
         datestamp <- format(Sys.time(),'%Y%m%d')
         outfile <- paste0(pop, '_gen', gen, '_', gen+1, '_breeders_final_', datestamp, '.csv')
         write.csv(pairs, file.path(outdir, outfile), row.names=F, quote=F, na='')
-        cat('Saved final breeders file to', file.path(outdir, outfile), '\n')
+        cat('Final breeders saved file to', file.path(outdir, outfile), '\n')
     }
     return(pairs)
 }
@@ -1567,8 +1569,9 @@ create_hsw_shipping_sheet <- function(
 }
 
 final_hsw_breeders_to_raw_ped <- function(
-    pairs,   # path or dataframe - final breeders file from the previous generation
+    pairs,   # path or dataframe - final breeders file to convert to pedigree
     colony_df, # path or dataframe - the current colony dataframe
+    prev_df, # path or dataframe - the previous
     stem,
     outdir # where to save the pedigree file 
 ) {
@@ -1577,6 +1580,9 @@ final_hsw_breeders_to_raw_ped <- function(
     }
     if (class(colony_df)=='character') {
         colony_df <- read.csv(colony_df)
+    }
+    if (class(prev_df)=='character') {
+        prev_df <- read.csv(prev_df)
     }
 
     paired_rfids <- c(pairs$dam_rfid, pairs$sire_rfid)
@@ -1587,13 +1593,13 @@ final_hsw_breeders_to_raw_ped <- function(
 
     # add alternate IDs to pedigree
     ped$dam_rfid <- sapply(ped$dam_animalid, function(x) {
-        pairs$dam_rfid[which(pairs$dam_animalid==x)]})
+        prev_df$rfid[which(prev_df$animalid==x)]})
     ped$sire_rfid <- sapply(ped$sire_animalid, function(x) {
-        pairs$sire_rfid[which(pairs$sire_animalid==x)]})
+        prev_df$rfid[which(prev_df$animalid==x)]})
     ped$dam_accessid <- sapply(ped$dam_animalid, function(x) {
-        pairs$dam_accessid[which(pairs$dam_animalid==x)]})
+        prev_df$accessid[which(prev_df$animalid==x)]})
     ped$sire_accessid <- sapply(ped$sire_animalid, function(x) {
-        pairs$sire_accessid[which(pairs$sire_animalid==x)]})
+        prev_df$accessid[which(prev_df$animalid==x)]})
 
     # convert any list columns to character vectors
     list_cols <- sapply(ped, is.list)
