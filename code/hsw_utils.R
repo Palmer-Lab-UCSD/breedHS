@@ -123,43 +123,60 @@ wfu_raw_to_hsw <- function(
 # function to produce a raw pedigree file from an HSW assignment sheet
 assignment_to_raw_ped <- function(
     assignments, # assignment file csv or dataframe
+    prev_df, # previous generation's colony df, csv or dataframe
     outdir,
-    wfu_ss = NULL, # wfu shipping sheet to incorporate into the pedigree, path to xlsx
-    wfu_sheet = NULL
+    wfu_shiplist = NULL # breeders shipped from WFU, already formatted from shipping sheets, csv or dataframe
 ) 
 {
     if (class(assignments)=='character') {
         assignments <- read.csv(assignments)
     }
+    if (class(prev_df)=='character') {
+        prev_df <- read.csv(prev_df)
+    }
     ped_cols <- c('generation','rfid','animalid','accessid','sex','coatcolor','earpunch','dam','sire','comments')
     gen <- assignments$generation[1]
 
-    ped <- assignments[assignments$assignment=='hsw_breeders',]
-    ped <- ped[,ped_cols]
-    ped <- ped[order(ped$animalid),]
+    ped <- assignments[assignments$assignment=='hsw_breeders',ped_cols]
 
-    if (!is.null(wfu_ss)) {
+    # add RFIDs, access IDs for dams & sires
+    names(ped)[which(names(ped)=='dam')] <- 'dam_animalid'
+    names(ped)[which(names(ped)=='sire')] <- 'sire_animalid'
+    ped$dam_rfid <- sapply(ped$dam_animalid, function(x) {
+        prev_df$rfid[which(prev_df$animalid==x)]})
+    ped$sire_rfid <- sapply(ped$sire_animalid, function(x) {
+        prev_df$rfid[which(prev_df$animalid==x)]})
+    ped$dam_accessid <- sapply(ped$dam_animalid, function(x) {
+        prev_df$accessid[which(prev_df$animalid==x)]})
+    ped$sire_accessid <- sapply(ped$sire_animalid, function(x) {
+        prev_df$accessid[which(prev_df$animalid==x)]})
+
+    # final column order to include in the raw pedigree
+    ped_cols <- c('generation','rfid','animalid','accessid','sex','coatcolor','earpunch',
+        'dam_rfid','sire_rfid','dam_animalid','sire_animalid','dam_accessid','sire_accessid','comments')
+    ped <- ped[,ped_cols]
+
+    if (!is.null(wfu_shiplist)) {
         
-        if(class(wfu_ss)=='character'){
-        wfu_ss <- as.data.frame(read_excel(wfu_ss, sheet=wfu_sheet))
+        if (class(wfu_shiplist)=='character') {
+        wfu <- read.csv(wfu_shiplist)
+        } else {
+            wfu <- wfu_shiplist
         }
 
-        wfu <- data.frame(
-            generation = gen,
-            rfid = wfu_ss['Transponder ID'],
-            animalid = wfu_ss['Animal ID'],
-            accessid = gsub('_', '', wfu_ss['Access ID']),
-            sex = wfu_ss['Sex'],
-            coatcolor = wfu_ss['Coat Color'],
-            earpunch = wfu_ss['Ear Punch'],
-            dam = gsub('_', '', wfu_ss['Dam']), 
-            sire = gsub('_', '', wfu_ss['Sire']), 
-            comments = NA
-        )
-        wfu <- wfu[order(wfu$animalid),]
+        # rename columns for consistency with HSW formatting
+        names(wfu)[which(names(wfu)=='hsw_gen')] <- 'generation'
+        names(wfu)[which(names(wfu)=='swid')] <- 'animalid'
+        names(wfu)[which(names(wfu)=='dam_swid')] <- 'dam_animalid'
+        names(wfu)[which(names(wfu)=='sire_swid')] <- 'sire_animalid'
+        wfu$comments <- NA
+
+        wfu <- wfu[wfu$generation==gen , ped_cols]
         ped <- rbind(ped, wfu)
     }
     
+    ped <- ped[order(ped$animalid),]
+
     outfile <-  file.path(outdir, paste0('hsw_raw_gen', gen, '.csv')) 
     write.csv(ped, outfile, row.names=F, quote=F, na='')
     cat('Raw pedigree written to', outfile, '\n')
@@ -203,9 +220,8 @@ format_hsw_raw_ped <- function(
     }
     
     # format the HSW pedigree for breedail
-    hsw_keep_cols <- c('rfid','generation','animalid','accessid','sex','dam','sire')
+    hsw_keep_cols <- c('rfid','generation','animalid','accessid','sex','dam_rfid','sire_rfid','dam_animalid','sire_animalid')
     df <- df[,hsw_keep_cols]
-    colnames(df) <- c('rfid','generation','animalid','id','sex','dam_animalid','sire_animalid')
     df$wfu_generation <- NA
 
     # convert dam animal IDs based on HSW vs WFU format
@@ -244,9 +260,10 @@ format_hsw_raw_ped <- function(
         }
     }, USE.NAMES = FALSE))
 
-    col_order <- c('id','dam','sire','sex','generation','wfu_generation','rfid',
-                   'animalid','dam_animalid','sire_animalid')
+    col_order <- c('accessid','dam','sire','sex','generation','wfu_generation','rfid',
+                   'animalid','dam_rfid','sire_rfid','dam_animalid','sire_animalid')
     df <- df[,col_order]
+    names(df)[which(names(df)=='accessid')] <- 'id'
     df <- df[order(as.numeric(df$id)),]
 
     if (!is.null(outdir)){
@@ -474,7 +491,8 @@ create_hsw_breeder_file <- function(
 # count the parental breeder pairs that have been or currently need assignment/pairing
 count_breeder_pairs <- function(
     assignments, # assignment sheet with ALL assignments so far
-    breederpairs)   # 'breederpair file' w/ all breeder pairings so far, or the output from create_breeder_file()
+    breederpairs,   # 'breederpair file' w/ all breeder pairings so far, or the output from create_breeder_file()
+    outdir=NULL)
 {
     if (class(assignments) == 'character') {
         assignments <- read.csv(assignments, na.str=(c('','NA','NaN','nan')))
@@ -592,13 +610,21 @@ count_breeder_pairs <- function(
         breederpairs.need.pairing <- NULL
     }
     
-    out <- list(all.breederpairs = all_breederpairs,
-                paired.but.not.assigned = paired.but.not.assigned, 
-                assigned.but.not.paired = assigned.but.not.paired, 
-                assigned.breederpairs = assigned.breederpairs,
-                paired.breederpairs = paired.breederpairs,
-                breederpairs.need.assignment = breederpairs.need.assignment,
-                breederpairs.need.pairing = breederpairs.need.pairing)
+    out <- list(all_breederpairs = all_breederpairs,
+                paired_but_not_assigned = paired.but.not.assigned, 
+                assigned_but_not_paired = assigned.but.not.paired, 
+                assigned_breederpairs = assigned.breederpairs,
+                paired_breederpairs = paired.breederpairs,
+                breederpairs_need_assignment = breederpairs.need.assignment,
+                breederpairs_need_pairing = breederpairs.need.pairing)
+
+    if (!is.null(outdir)) {
+        datestamp <- format(Sys.time(),'%Y%m%d')
+        for (i in 1:length(out)) {
+            file <- paste0(datestamp, '_', names(out)[i])
+            writeLines(as.character(out[i]), file.path(outdir, file))
+        }
+    }
 
     return(out)
 }
@@ -1554,9 +1580,33 @@ final_hsw_breeders_to_raw_ped <- function(
     }
 
     paired_rfids <- c(pairs$dam_rfid, pairs$sire_rfid)
-    ped_cols <- c('generation','rfid','animalid','accessid','sex','coatcolor','earpunch','dam','sire','comments')
-    ped <- colony_df[colony_df$rfid %in% paired_rfids, ped_cols]
-    ped <- ped[order(ped$animalid),]
+    df_cols <- c('generation','rfid','animalid','accessid','sex','coatcolor','earpunch','dam','sire','comments')
+    ped <- colony_df[colony_df$rfid %in% paired_rfids, df_cols]
+    names(ped)[which(names(ped)=='dam')] <- 'dam_animalid'
+    names(ped)[which(names(ped)=='sire')] <- 'sire_animalid'
+
+    # add alternate IDs to pedigree
+    ped$dam_rfid <- sapply(ped$dam_animalid, function(x) {
+        pairs$dam_rfid[which(pairs$dam_animalid==x)]})
+    ped$sire_rfid <- sapply(ped$sire_animalid, function(x) {
+        pairs$sire_rfid[which(pairs$sire_animalid==x)]})
+    ped$dam_accessid <- sapply(ped$dam_animalid, function(x) {
+        pairs$dam_accessid[which(pairs$dam_animalid==x)]})
+    ped$sire_accessid <- sapply(ped$sire_animalid, function(x) {
+        pairs$sire_accessid[which(pairs$sire_animalid==x)]})
+
+    # convert any list columns to character vectors
+    list_cols <- sapply(ped, is.list)
+    if(any(list_cols)) {
+        ped[list_cols] <- lapply(ped[list_cols], function(x) {
+            sapply(x, function(y) if(length(y) == 0) NA else paste(y,collapse='|'))
+        })
+    }
+
+    ped_cols <- c('generation','rfid','animalid','accessid','sex','coatcolor','earpunch',
+    'dam_rfid','sire_rfid','dam_animalid','sire_animalid','dam_accessid','sire_accessid','comments')
+
+    ped <- ped[order(ped$animalid) , ped_cols]
     gen <- ped$generation[1]
 
     outfile <- file.path(outdir, paste0(stem, gen, '.csv'))
