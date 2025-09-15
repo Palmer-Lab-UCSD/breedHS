@@ -76,6 +76,11 @@ read_wfu_raw_ped <- function(
         wfu[,col][wfu[,col]=='NA'] <- NA
     }
 
+    # format comments
+    if ('Comments' %in% colnames(wfu)){
+        wfu$Comments <- gsub(',',';',wfu$Comments)
+    }
+
     return(wfu)
 }
 
@@ -126,7 +131,7 @@ format_wfu_raw_ped <- function(
         wfu_keepcols <- setdiff(keep_cols, colnames(wfu))
         if (length(wfu_keepcols)>0) {
             cat('Make sure the pedigree has the following columns:', keep_cols, '\n')
-            cat('File:', ped)
+            cat('File:', ped, '\n')
         }
     }
     wfu <- wfu[,keep_cols]
@@ -381,4 +386,117 @@ map_merged_ids_wfu <- function(
     write.csv(id_map, outfile, row.names=F, quote=F, na='')
     cat('ID map written to', outfile, '\n')
     return(id_map)
+}
+
+# function to incorporate HSW rats into the WFU pedigree using a shipping sheet from HSW
+add_hsw_rats_to_wfu_raw_ped <- function(
+    ped,    # path to any raw pedigree file (single- or multi-gen, xlsx or csv)
+    hsw_shipping_sheet, # path to shipping sheet (xlsx or csv)
+    add_to_gen, # the WFU generation into which to incorporate HSW rats
+    outdir) # desired output directory path
+{   
+    # save the individual generation pedigree to csv
+    if (dir.exists(outdir) == FALSE) {
+        dir.create(outdir, showWarnings = TRUE)
+    }
+
+    # read in the WFU pedigree
+    wfu <- read_wfu_raw_ped(ped)
+    
+    keep_cols <- c('ID.F51','CC','Sex','FamNo','DOB','HomeCage','Sire.ID','Dam.ID','Transpondernumber','SW.ID',
+                   'Generation','EarPunch','Sire.SW.ID','Dam.SW.ID', 'Comments')
+    keep_cols <- gsub('.', '', keep_cols, fixed=T)
+    
+    # remove periods from column names (for downstream consistency)
+    colnames(wfu) <- gsub('.', '', colnames(wfu), fixed=T)
+
+    # remove underscores from access IDs (if present)
+    wfu$IDF51 <- gsub('_', '', wfu$IDF51, fixed=T)
+    wfu$SireID <- gsub('_', '', wfu$SireID, fixed=T)
+    wfu$DamID <- gsub('_', '', wfu$DamID, fixed=T)
+    
+    # check column formatting
+    missing_cols <- setdiff(keep_cols, colnames(wfu))
+    if (length(missing_cols)>0) {
+        cat('Make sure the pedigree has the following columns:', missing_cols, '\n')
+        cat('File:', ped, '\n')
+    }
+    
+    # split the pedigree by generation
+    ped_gens <- split(wfu, wfu$Generation)
+    ped_gens <- ped_gens[order(as.numeric(names(ped_gens)))]
+
+    # read in shipping sheet
+    if (file_ext(hsw_shipping_sheet) == 'xlsx') {
+        # suppress warnings temporarily - excel formatting can produce a lot
+        oldw <- getOption('warn')
+        options(warn = -1)
+        hsw_ss <- as.data.frame(read_excel(hsw_shipping_sheet))
+        options(warn = oldw) # allow warnings again
+    } else if (file_ext(hsw_shipping_sheet) == 'csv') {
+        hsw_ss <- read.csv(hsw_shipping_sheet, na.str=c('','NA','NaN','nan'))
+    }
+
+    keep_cols <- c('generation','rfid','animalid','breederpair','sex','coatcolor','earpunch',
+                   'dob','dow','dam','sire','comments')
+    hsw_ss <- hsw_ss[,keep_cols]
+    hsw_ss$comments <- gsub(',',';',hsw_ss$comments)
+
+    # check column formatting
+    missing_cols <- setdiff(keep_cols, colnames(hsw_ss))
+    if (length(missing_cols)>0) {
+        cat('Make sure the pedigree has the following columns:', missing_cols, '\n')
+        cat('File:', hsw_shipping_sheet, '\n')
+    }
+    
+    # rename columns
+    new_ss_names <- c('Generation','Transpondernumber','SWID','FamNo','Sex','CC','EarPunch',
+                   'DOB','DOW','DamSWID','SireSWID','Comments')
+    colnames(hsw_ss) <- new_ss_names
+
+    # add extra ID columns to the shipping sheet
+    hsw_ss$IDF51 <- animalid_to_accessid(hsw_ss$SWID)
+    hsw_ss$SireID <- animalid_to_accessid(hsw_ss$SireSWID)
+    hsw_ss$DamID <- animalid_to_accessid(hsw_ss$DamSWID)
+
+    # add extra pedigree columns to the shipping sheet
+    ped_extra_cols <- setdiff(colnames(wfu), colnames(hsw_ss))
+    if (length(ped_extra_cols)>0) {
+        for (col in ped_extra_cols) {
+            hsw_ss[[col]] <- NA
+        }
+    }
+
+    # reset column order - same as the pedigree
+    hsw_ss <- hsw_ss[,colnames(wfu)]
+    hsw_ss <- hsw_ss[order(hsw_ss$SWID),]
+    
+    # concatenate the shipping sheet to the WFU pedigree
+    for (wfu_gen in names(ped_gens)){
+        
+        ped <- ped_gens[[wfu_gen]]
+        ped <- ped[order(ped$SWID),]
+        gen_int <- gsub('00$','', wfu_gen)
+        gen_out <- gen_int
+        if (nchar(gen_int) == 1) {
+            gen_out <- paste0('0', gen_int)
+        }
+        if (as.integer(gen_int) == as.integer(add_to_gen)) {
+            hsw_ss$Generation <- wfu_gen
+            ped <- rbind(ped, hsw_ss)
+        } 
+        ped_gens[[wfu_gen]] <- ped
+
+        outfile <- file.path(outdir, paste0('wfu_raw_gen', gen_out, '.csv'))
+        write.csv(ped, outfile, row.names=F, quote=F, na='')
+
+    }
+
+    # re-concatenate all pedigree generations
+    wfu_out <- do.call(rbind, ped_gens)
+    
+    datestamp <- format(Sys.time(),'%Y%m%d')
+    outfile <- file.path(outdir, paste0('wfu_raw_ped_complete_', datestamp, '.csv'))
+    write.csv(wfu_out, outfile, row.names=F, quote=F, na='')
+
 }
