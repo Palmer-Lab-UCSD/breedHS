@@ -24,6 +24,17 @@ accessid_to_swid <- function(id, wfu_map) {
     return(swid)
 }
 
+accessid_to_rfid <- function(id, wfu_map) {
+
+    if (id %in% wfu_map[['accessid']]) {
+        rfid <- wfu_map[wfu_map[['accessid']] == id,][['rfid']]
+    } else {
+        rfid <- NA
+    }
+    return(rfid)
+}
+
+
 # find a WFU animal ID (SW.ID) given a WFU access ID
 get_wfu_swid <- function(id, wfu_df){
     wfu_df <- read.csv(wfu_df, na.str=c('','NA','NaN','nan'))
@@ -118,10 +129,16 @@ split_wfu_raw_ped <- function(
 # function to format a raw complete pedigree from WFU for use in breedail
 format_wfu_raw_ped <- function(
     ped,    # path to any raw pedigree file (single- or multi-gen, xlsx or csv)
+    wfu_map, # path to WFU ID map
     outdir) # desired output directory path
 {
 
-    wfu <- read_wfu_raw_ped(ped)
+    if (file.exists(wfu_map)) {
+        wfu_map <- read.csv(wfu_map)
+    }
+    if (file.exists(ped)) {
+        wfu <- read_wfu_raw_ped(ped)
+    }
     
     # subset only the rows needed to identify breeders using breedail
     keep_cols <- c('ID.F51','Dam.ID','Sire.ID','Sex','Generation','Transpondernumber','SW.ID','Dam.SW.ID','Sire.SW.ID')
@@ -140,9 +157,19 @@ format_wfu_raw_ped <- function(
     new_colnames <- c('id','dam','sire','sex','generation','rfid','animalid','dam_animalid','sire_animalid')
     colnames(wfu) <- new_colnames
 
+    # add dam/sire RFID columns
+    wfu$dam_rfid <- sapply(wfu$dam, function(x) accessid_to_rfid(x, wfu_map))
+    wfu$sire_rfid <- sapply(wfu$sire, function(x) accessid_to_rfid(x, wfu_map))
+
+    # rearrange columns
+    col_order <- c('id','dam','sire','sex','generation','rfid','animalid',
+                   'dam_rfid','sire_rfid','dam_animalid','sire_animalid')
+    wfu <- wfu[,col_order]
+
     # format NA's for compatibility with breedail
     for (col in 1:ncol(wfu)){
         wfu[,col][which(wfu[,col]=='NA')] <- '?'
+        wfu[,col][which(wfu[,col]=='')] <- '?'
         wfu[,col][which(is.na(wfu[,col]))] <- '?'
     }
 
@@ -431,7 +458,7 @@ add_hsw_rats_to_wfu_raw_ped <- function(
         # suppress warnings temporarily - excel formatting can produce a lot
         oldw <- getOption('warn')
         options(warn = -1)
-        hsw_ss <- as.data.frame(read_excel(hsw_shipping_sheet))
+        hsw_ss <- as.data.frame(read_excel(hsw_shipping_sheet, sheet='for WFU'))
         options(warn = oldw) # allow warnings again
     } else if (file_ext(hsw_shipping_sheet) == 'csv') {
         hsw_ss <- read.csv(hsw_shipping_sheet, na.str=c('','NA','NaN','nan'))
