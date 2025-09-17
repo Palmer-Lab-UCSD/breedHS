@@ -42,10 +42,12 @@ accessid_to_animalid <- function(id){
 # function to format a raw WFU pedigree into HSW gens 0-41 (54-95) for breedail
 wfu_raw_to_hsw <- function(
     ped, 
+    wfu_map,
     outdir) 
 {
     wfu <- read_wfu_raw_ped(ped)
-    
+    wfu_map <- read.csv(wfu_map)
+
     # subset only the rows needed to identify breeders using breedail
     keep_cols <- c('ID.F51','Dam.ID','Sire.ID','Sex','Generation','Transpondernumber','SW.ID','Dam.SW.ID','Sire.SW.ID')
     wfu_keepcols <- setdiff(keep_cols, colnames(wfu))
@@ -62,6 +64,15 @@ wfu_raw_to_hsw <- function(
     # rename columns for compatibility with breedail
     new_colnames <- c('id','dam','sire','sex','generation','rfid','animalid','dam_animalid','sire_animalid')
     colnames(wfu) <- new_colnames
+
+    # add dam/sire RFID columns
+    wfu$dam_rfid <- sapply(wfu$dam, function(x) accessid_to_rfid(x, wfu_map))
+    wfu$sire_rfid <- sapply(wfu$sire, function(x) accessid_to_rfid(x, wfu_map))
+
+    # rearrange columns
+    col_order <- c('id','dam','sire','sex','generation','rfid','animalid',
+                   'dam_rfid','sire_rfid','dam_animalid','sire_animalid')
+    wfu <- wfu[,col_order]
 
     # format NA's for compatibility with breedail
     for (col in 1:ncol(wfu)){
@@ -81,8 +92,8 @@ wfu_raw_to_hsw <- function(
 
     # add 54 to all generation numbers to equal HSW numbering convention
     # (HSW generation counts are in TOTAL HS rat generations, not only WFU generations)
-    hsw$wfu_generation <- as.numeric(hsw$generation)
-    hsw$generation <- hsw$wfu_generation + 54
+    # hsw$wfu_generation <- as.numeric(hsw$generation)
+    hsw$generation <- as.numeric(hsw$generation) + 54
 
     # # reorder columns
     # gen_col <- which(colnames(hsw) == 'generation')
@@ -194,38 +205,37 @@ assignment_to_raw_ped <- function(
     return(outfile)
 }
 
-# function to produce a breedail pedigree from breeders assignments
+# function to produce a breedail pedigree from a raw HSW pedigree
 format_hsw_raw_ped <- function(
-    df,                 # an HSW raw pedigree (csv) w/ an assignment column including 'hsw_breeders' assignments
+    ped,                # an HSW raw pedigree (csv), single- or multi-generation
     wfu_map = NULL,     # the WFU ID map (csv) with WFU access IDs and animal IDs (SW IDs)
     hsw_map = NULL,     # the HSW ID map (csv) 
     outdir = NULL,      # directory in which to save the formatted pedigree file
-    return_df = FALSE)  # whether to return the final df to the R console
+    return_df = FALSE) # whether to return the final df to the R console
 {
-    if (class(df) == 'character') {
-        df <- read.csv(df, na.str=c('','NA','NaN','nan'))
-    } else if (class(df) == 'data.frame') {
-        df <- df
+    if (file.exists(ped)) {
+        ped <- read.csv(ped, na.str=c('','NA','NaN','nan'))
+    } else if (class(ped) == 'data.frame') {
+        ped <- ped
     }
-    hsw_gen <- df$generation[1]
     if (!is.null(wfu_map)) {
-        if(class(wfu_map) == 'character') {
+        if(file.exists(wfu_map)) {
             wfu_map <- read.csv(wfu_map)
         }
     }
     if (!is.null(hsw_map)) {
-        if(class(hsw_map) == 'character') {
+        if(file.exists(hsw_map)) {
             hsw_map <- read.csv(hsw_map)
         }
     }
     
     # format the HSW pedigree for breedail
     hsw_keep_cols <- c('rfid','generation','animalid','accessid','sex','dam_rfid','sire_rfid','dam_animalid','sire_animalid')
-    df <- df[,hsw_keep_cols]
-    df$wfu_generation <- NA
+    ped <- ped[,hsw_keep_cols]
+    # ped$wfu_generation <- NA
 
     # convert dam animal IDs based on HSW vs WFU format
-    df$dam <- unlist(sapply(df$dam_animalid, function(x) {
+    ped$dam <- unlist(sapply(ped$dam_animalid, function(x) {
         if (is.na(x)) return(NA)
         if (grepl('^WHS', x)) {
             swid_to_accessid(x, wfu_map)
@@ -243,7 +253,7 @@ format_hsw_raw_ped <- function(
     }, USE.NAMES = FALSE))
 
     # convert sire IDs
-    df$sire <- unlist(sapply(df$sire_animalid, function(x) {
+    ped$sire <- unlist(sapply(ped$sire_animalid, function(x) {
         if (is.na(x)) return(NA)
         if (grepl('^WHS', x)) {
             swid_to_accessid(x, wfu_map)
@@ -260,35 +270,36 @@ format_hsw_raw_ped <- function(
         }
     }, USE.NAMES = FALSE))
 
-    col_order <- c('accessid','dam','sire','sex','generation','wfu_generation','rfid',
-                   'animalid','dam_rfid','sire_rfid','dam_animalid','sire_animalid')
-    df <- df[,col_order]
-    names(df)[which(names(df)=='accessid')] <- 'id'
-    df <- df[order(as.numeric(df$id)),]
+    col_order <- c('accessid','dam','sire','sex','generation','rfid','animalid',
+                   'dam_rfid','sire_rfid','dam_animalid','sire_animalid')
+    ped <- ped[,col_order]
+    names(ped)[which(names(ped)=='accessid')] <- 'id'
+    ped <- ped[order(as.numeric(ped$id)),]
 
     if (!is.null(outdir)){
         
-        if (nchar(hsw_gen) == 1) {
-            gen <- paste0('00', hsw_gen)
-        } else if (nchar(hsw_gen) == 2) {
-            gen <- paste0('0', hsw_gen)
-        } else if (nchar(hsw_gen) == 3) {
-            gen <- hsw_gen
-        }
-        
-        if (dir.exists(outdir) == FALSE) {
-            dir.create(outdir, showWarnings = TRUE)
+        all_gens <- unique(ped$generation)
+        for (hsw_gen in all_gens) {
+            if (nchar(hsw_gen) == 1) {
+                gen <- paste0('00', hsw_gen)
+            } else if (nchar(hsw_gen) == 2) {
+                gen <- paste0('0', hsw_gen)
+            } else if (nchar(hsw_gen) == 3) {
+                gen <- hsw_gen
+            }
+            
+            if (dir.exists(outdir) == FALSE) {
+                dir.create(outdir, showWarnings = TRUE)
+            }
+            gen_ped <- ped[ped$generation==hsw_gen,]
+            write.csv(gen_ped, file.path(outdir, paste0('hsw_gen', gen, '.csv')), row.names=F, quote=F, na='?')
+
         }
 
-        write.csv(df, file.path(outdir, paste0('hsw_gen', gen, '.csv')), row.names=F, quote=F, na='?')
-    }
-
-    if (!is.logical(return_df)) {
-        stop("return_df should be a logical value")
     }
 
     if (return_df) {
-        return(df)    
+        return(ped)    
     }  
 }
 
@@ -323,10 +334,9 @@ wfu_into_hsw_gen <- function(hsw_raw,   # an HSW assignment sheet (csv) w/ breed
     hsw_keep_cols <- c('rfid','generation','animalid','accessid','sex','dam','sire')
     hsw <- hsw[,hsw_keep_cols]
     colnames(hsw) <- c('rfid','generation','animalid','id','sex','dam_animalid','sire_animalid')
-    hsw$wfu_generation <- NA
     hsw$dam <- sapply(hsw$dam_animalid, animalid_to_accessid)
     hsw$sire <- sapply(hsw$sire_animalid, animalid_to_accessid)
-    col_order <- c('id','dam','sire','sex','generation','wfu_generation','rfid',
+    col_order <- c('id','dam','sire','sex','generation','rfid',
                    'animalid','dam_animalid','sire_animalid')
     hsw <- hsw[,col_order]
     hsw <- hsw[!is.na(hsw$id),]
@@ -336,7 +346,6 @@ wfu_into_hsw_gen <- function(hsw_raw,   # an HSW assignment sheet (csv) w/ breed
     wfu <- wfu[,wfu_keep_cols]
     colnames(wfu) <- c('dam','sire','id','animalid','rfid','sex')
     wfu <- wfu[!is.na(wfu$id),]
-    wfu$wfu_generation <- ss_gen
     wfu$dam <- gsub('_', '', wfu$dam)
     wfu$sire <- gsub('_', '', wfu$sire)
     wfu$id <- gsub('_', '', wfu$id)
@@ -1505,7 +1514,7 @@ map_merged_ids_hsw <- function(
     return(id_map)
 }
 
-
+# save a shipping sheet with all rats identified as best-match breeders to send to WFU
 create_hsw_shipping_sheet <- function(
     pairs,        # R dataframe or csv path, as output by select.breeders, dam/sire must be animal IDs
     assignments,  # HSW colony assignments for the current generation of rats to be sent
