@@ -1153,13 +1153,9 @@ write.complete.ped <- function(
         ped.tmp <- as.data.frame(ped.tmp)
         ped.tmp <- ped.tmp[order(ped.tmp[,1]),]
         
-        # print(paste('i:', i, file.name))
-        # print(paste('ped:', ncol(ped)))
-        # print(names(ped))
-        # print(paste('ped.tmp:', ncol(ped.tmp)))
-        # print(names(ped.tmp))
         ped <- rbind(ped, ped.tmp)
     }
+
     if (save_file) {
       outfile <- file.path(data_dir, paste0(file_stem, 
                           '_0', first_gen, '_', last_gen, '_complete_ped.csv'))
@@ -1225,29 +1221,42 @@ translate.merged.ped <- function(
     wfu_map, # the WFU ID map
     hsw_map) # the HSW ID map
 {
-    if (file.exists(ped)) {
-        df <- read.csv(ped)
-        basefile <- file_path_sans_ext(ped)
-    } else if (sum(!names(ped) %in% c('pedigree','id.map','file')) == 0) {
+
+    if (sum(!names(ped) %in% c('pedigree','id.map','file')) == 0) {
         df <- ped$pedigree
         basefile <- file_path_sans_ext(ped$file)
-    } 
-    if (file.exists(id_map)) {
-        id_map <- read.csv(id_map)
-    } else if (class(id_map) == 'data.frame') {
-        id_map <- id_map
-    } else if (sum(!names(id_map) %in% c('pedigree','id.map')) == 0) {
-        id_map <- id_map$id.map
-    } 
-    if (file.exists(wfu_map)) {
-        wfu_map <- read.csv(wfu_map)
-    } else if (class(wfu_map) == 'data.frame') {
-        wfu_map <- wfu_map
+        if (sum(!names(id_map) %in% c('pedigree','id.map','file')) == 0) {
+            id_map <- ped$id.map 
+        }
+    } else if (file.exists(ped)) {
+        df <- read.csv(ped, na.strings = c("", "NA", "?"))
+        basefile <- file_path_sans_ext(ped)
+    } else {
+        stop("Invalid pedigree input")
     }
-    if (file.exists(hsw_map)) {
-        hsw_map <- read.csv(hsw_map)
-    } else if (class(hsw_map) == 'data.frame') {
+    
+    if (is.data.frame(id_map)) {
+        id_map <- id_map
+    } else if (file.exists(id_map)) {
+        id_map <- read.csv(id_map, na.strings = c("", "NA", "?"))
+    } else {
+        stop("Invalid id_map input")
+    }
+    
+    if (is.data.frame(wfu_map)) {
+        wfu_map <- wfu_map
+    } else if (file.exists(wfu_map)) {
+        wfu_map <- read.csv(wfu_map, na.strings = c("", "NA", "?"))
+    } else {
+        stop("Invalid wfu_map input")
+    }
+    
+    if (is.data.frame(hsw_map)) {
         hsw_map <- hsw_map
+    } else if (file.exists(hsw_map)) {
+        hsw_map <- read.csv(hsw_map, na.strings = c("", "NA", "?"))
+    } else {
+        stop("Invalid hsw_map input")
     }
 
     names(df)[which(names(df)=='id')] <- 'merged_id'
@@ -1339,9 +1348,6 @@ translate.merged.ped <- function(
                    'dam_animalid','sire_animalid','dam_rfid','sire_rfid')
     df <- df[,col_order]
     df[df=='?'] <- NA
-
-    print(head(df))
-    print(tail(df))
 
     datestamp <- format(Sys.time(),'%Y%m%d')
     outfile <- paste0(basefile, '_all_ids_', datestamp, '.csv')
