@@ -111,6 +111,19 @@ find.mates.res <- function(ped, k){
 
     ## check if any of parents are shared between breeding pair ##
     problem = sum(parents.1 == parents.2)
+    
+    ####################################
+    # # uncomment for troubleshooting only
+    # print(paste('id.1:', id.1))
+    # print(paste('id.2:', id.2))
+    # print('ped.tmp:')
+    # print(ped.tmp)
+    # print(paste('parents.1:', parents.1))
+    # print(paste('parents.1:', parents.2))
+    # print('problem:')
+    # print(problem)
+    ####################################
+    
     if (problem){
       cat("Remaining possible mating pairs share at least one parent.  Exiting. . .\n")
       return(output)
