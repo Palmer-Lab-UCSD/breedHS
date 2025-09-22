@@ -147,6 +147,10 @@ find.ped.errors <- function(first_gen,  # the desired starting generation
       ## write missing parents to a file for investigation
       if (write_file) {
           
+          datestamp <- format(Sys.time(),'%Y%m%d')
+          errs_dir <- file.path(data_dir, paste0('ped_errors_',datestamp))
+          dir.create(errs_dir, showWarnings=F)
+
           cat('See file(s) for details: \n')
 
           if (!is.null(missing_parents)) {
@@ -158,12 +162,12 @@ find.ped.errors <- function(first_gen,  # the desired starting generation
             ped = missing_parents_files,
             kin_ped = missing_kin_files)
 
-            datestamp <- format(Sys.time(),'%Y%m%d')
+            
             outstr1 <- paste0(file_stem, '_',
                             rep('0',(last_nchar-first_nchar)),
                             first_gen, '_', last_gen,
                             '_ped_error_missing_parents_', datestamp, '.csv')
-            outfile1 <- file.path(data_dir, outstr1)
+            outfile1 <- file.path(errs_dir, outstr1)
             write.csv(missing_df, outfile1, row.names=F, quote=F)
             cat(outfile1, '\n')
 
@@ -171,7 +175,7 @@ find.ped.errors <- function(first_gen,  # the desired starting generation
                             rep('0',(last_nchar-first_nchar)),
                             first_gen, '_', last_gen,
                             '_ped_error_kin_w_missing_parents_', datestamp, '.csv')
-            outfile2 <- file.path(data_dir, outstr2)
+            outfile2 <- file.path(errs_dir, outstr2)
             write.csv(kin_no_parents, outfile2, row.names=F, quote=F)
             cat(outfile2, '\n')
           }
@@ -182,14 +186,15 @@ find.ped.errors <- function(first_gen,  # the desired starting generation
                             rep('0',(last_nchar-first_nchar)),
                             first_gen, '_', last_gen,
                             '_ped_error_parent_NAs_', datestamp, '.csv')
-            outfile3 <- file.path(data_dir, outstr3)
+            outfile3 <- file.path(errs_dir, outstr3)
             write.csv(empty_parents, outfile3, row.names=F, quote=F)
             cat(outfile3, '\n')
           }
       }
       if (return_ids) {
-          return(list(missing_parents = missing_parents,
-                      empty_parents = empty_parents))
+          return(list(unfound_parents = missing_parents,
+                      empty_parents = empty_parents,
+                      offspring_without_parents = kin_no_parents))
       }
   }
 }
@@ -1148,6 +1153,11 @@ write.complete.ped <- function(
         ped.tmp <- as.data.frame(ped.tmp)
         ped.tmp <- ped.tmp[order(ped.tmp[,1]),]
         
+        # print(paste('i:', i, file.name))
+        # print(paste('ped:', ncol(ped)))
+        # print(names(ped))
+        # print(paste('ped.tmp:', ncol(ped.tmp)))
+        # print(names(ped.tmp))
         ped <- rbind(ped, ped.tmp)
     }
     if (save_file) {
@@ -1215,13 +1225,17 @@ current.kinship <- function(df, # colony df with ALL HSW rats
                            last_gen,
                            data_dir,
                            file_stem,
+                           wfu_map,
+                           hsw_map,
                            id_map = NULL)  # if using a merged pedigree
 {
+
     df <- read.csv(df)
-    if (as.numeric(df$generation[1]) != as.numeric(last_gen)){
+    if (as.numeric(df$generation[1]) != as.numeric(last_gen)) {
         stop(paste0('Colony dataframe generation (', df$generation[1], 
                    ') and last_gen (', last_gen, ') must be identical'))
     }
+
     # format the pedigree for kinship estimation
     ped_for_kinship <- format.pedigree(
         first_gen = first_gen,
@@ -1268,8 +1282,8 @@ current.kinship <- function(df, # colony df with ALL HSW rats
     m_pairs <- rep(all_males, each = n_females)
 
     all_pairs <- data.frame(dam = f_pairs, sire = m_pairs)
-    all_pairs$dam_fam <- sapply(all_pairs$dam, function(x) sub('.*_B(\\d+)_.*', '\\1', x))
-    all_pairs$sire_fam <- sapply(all_pairs$sire, function(x) sub('.*_B(\\d+)_.*', '\\1', x))
+    all_pairs$dam_fam <- sapply(all_pairs$dam, function(x) get_fam(x, wfu_map=wfu_map, hsw_map=hsw_map))
+    all_pairs$sire_fam <- sapply(all_pairs$sire, function(x) get_fam(x, wfu_map=wfu_map, hsw_map=hsw_map))
 
     for (i in 1:nrow(all_pairs)) {
         dam <- all_pairs$dam[i]
@@ -1295,4 +1309,78 @@ current.kinship <- function(df, # colony df with ALL HSW rats
 printout <- function(str) {
     cat(paste0('\n[', format(Sys.time(), '%Y-%m-%d %H:%M:%S'), ']'), 
     str, '\n\n')
+}
+
+
+get_hsw_fam <- function(id) {
+
+      # to extract from animal ID
+      if (grepl('^G', id)) {
+          fam <- sub('.*_B(\\d+)_.*', '\\1', id)
+      # to extract from access ID
+      } else {
+          clean_id <- substr(id, start = 3, stop = nchar(id))
+          fam <- substr(clean_id, start = nchar(clean_id)-3, stop = nchar(clean_id)-2)
+      }
+    
+    return(fam)
+}
+
+get_wfu_fam <- function(accessid) {
+
+  fam <- sub('^(\\d+)(\\d{1})$', '\\1', accessid)
+  return(fam)
+}
+
+get_fam <- function(id, wfu_map, hsw_map) {
+    
+    if (file.exists(wfu_map)) {
+      wfu_map <- read.csv(wfu_map)
+    } else if (class(wfu_map)=='data.frame') {
+      wfu_map <- wfu_map
+    }
+    if (file.exists(hsw_map)) {
+      hsw_map <- read.csv(hsw_map)
+    } else if (class(hsw_map)=='data.frame') {
+      hsw_map <- hsw_map
+    }
+    wfu_map$accessid <- as.character(wfu_map$accessid)
+    hsw_map$accessid <- as.character(hsw_map$accessid)
+    id <- as.character(id)
+
+    # ID format: access vs animal ID
+    use_accessid <- !is.na(as.integer(id))
+
+
+    # ensure the ID is found in either ID map
+    if (!id %in% c(hsw_map$accessid, wfu_map$accessid, 
+                    hsw_map$animalid, wfu_map$swid)) {
+        stop(cat('ID', id, 'not found in either the HSW or WFU ID maps', '\n'))
+    }
+
+    # extract family ID from access IDs
+    if (use_accessid) {
+        if (id %in% hsw_map$accessid) {
+            fam <- get_hsw_fam(id)
+        } else {
+            fam <- get_wfu_fam(id)
+        }
+    # extract from animal IDs
+    } else {
+        if (grepl('^G', id)) {
+            # HSW fams can be extracted directly from the animal ID
+            fam <- get_hsw_fam(id)
+        } else if (id %in% hsw_map$animalid) {
+            # WFU SWIDs neeed to be converted to access ID
+            # use the HSW map for rats shipped from WFU
+            accessid <- hsw_map$accessid[which(hsw_map$animalid==id)]
+            fam <- get_wfu_fam(accessid)
+        } else {
+            # use the WFU map for in-house WFU rats
+            accessid <- wfu_map$accessid[which(wfu_map$swid==id)]
+            fam <- get_wfu_fam(accessid)
+        }
+    }
+    
+    return(fam) 
 }
