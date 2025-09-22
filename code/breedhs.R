@@ -1218,6 +1218,139 @@ translate.merged.ids <- function(
     return(list(pairs = df, file = outfile))
 }
 
+# create a merged pedigree copy with all ID types
+translate.merged.ped <- function(
+    ped,     # the pedigree with IDs to convert
+    id_map,  # the pedigree ID map file to use for conversion
+    wfu_map, # the WFU ID map
+    hsw_map) # the HSW ID map
+{
+    if (file.exists(ped)) {
+        df <- read.csv(ped)
+        basefile <- file_path_sans_ext(ped)
+    } else if (sum(!names(ped) %in% c('pedigree','id.map','file')) == 0) {
+        df <- ped$pedigree
+        basefile <- file_path_sans_ext(ped$file)
+    } 
+    if (file.exists(id_map)) {
+        id_map <- read.csv(id_map)
+    } else if (class(id_map) == 'data.frame') {
+        id_map <- id_map
+    } else if (sum(!names(id_map) %in% c('pedigree','id.map')) == 0) {
+        id_map <- id_map$id.map
+    } 
+    if (file.exists(wfu_map)) {
+        wfu_map <- read.csv(wfu_map)
+    } else if (class(wfu_map) == 'data.frame') {
+        wfu_map <- wfu_map
+    }
+    if (file.exists(hsw_map)) {
+        hsw_map <- read.csv(hsw_map)
+    } else if (class(hsw_map) == 'data.frame') {
+        hsw_map <- hsw_map
+    }
+
+    names(df)[which(names(df)=='id')] <- 'merged_id'
+    names(df)[which(names(df)=='dam')] <- 'dam_merged_id'
+    names(df)[which(names(df)=='sire')] <- 'sire_merged_id'
+
+    # translate merged IDs to access ID
+    df$accessid <- id_map$accessid[match(df$merged_id, id_map$merged_id)]
+    df$dam_accessid <- id_map$accessid[match(df$dam_merged_id, id_map$merged_id)]
+    df$sire_accessid <- id_map$accessid[match(df$sire_merged_id, id_map$merged_id)]
+
+    # translate access IDs to animal ID (FIXED: added NA handling and explicit returns)
+    df$animalid <- sapply(df$accessid, function(x) {
+        if (is.na(x)) {
+            return(NA)
+        } else if (x %in% wfu_map$accessid) {
+            return(wfu_map$swid[match(x, wfu_map$accessid)])
+        } else if (x %in% hsw_map$accessid) {
+            return(hsw_map$animalid[match(x, hsw_map$accessid)])
+        } else {
+            return(NA)
+        }
+    })
+    
+    df$dam_animalid <- sapply(df$dam_accessid, function(x) {
+        if (is.na(x)) {
+            return(NA)
+        } else if (x %in% wfu_map$accessid) {
+            return(wfu_map$swid[match(x, wfu_map$accessid)])
+        } else if (x %in% hsw_map$accessid) {
+            return(hsw_map$animalid[match(x, hsw_map$accessid)])
+        } else {
+            return(NA)
+        }
+    })
+    
+    df$sire_animalid <- sapply(df$sire_accessid, function(x) {
+        if (is.na(x)) {
+            return(NA)
+        } else if (x %in% wfu_map$accessid) {
+            return(wfu_map$swid[match(x, wfu_map$accessid)])
+        } else if (x %in% hsw_map$accessid) {
+            return(hsw_map$animalid[match(x, hsw_map$accessid)])
+        } else {
+            return(NA)
+        }
+    })
+
+    # translate access IDs to RFID (FIXED: added NA handling and explicit returns)
+    df$rfid <- sapply(df$accessid, function(x) {
+        if (is.na(x)) {
+            return(NA)
+        } else if (x %in% wfu_map$accessid) {
+            return(wfu_map$rfid[match(x, wfu_map$accessid)])
+        } else if (x %in% hsw_map$accessid) {
+            return(hsw_map$rfid[match(x, hsw_map$accessid)])
+        } else {
+            return(NA)
+        }
+    })
+    
+    df$dam_rfid <- sapply(df$dam_accessid, function(x) {
+        if (is.na(x)) {
+            return(NA)
+        } else if (x %in% wfu_map$accessid) {
+            return(wfu_map$rfid[match(x, wfu_map$accessid)])
+        } else if (x %in% hsw_map$accessid) {
+            return(hsw_map$rfid[match(x, hsw_map$accessid)])
+        } else {
+            return(NA)
+        }
+    })
+    
+    df$sire_rfid <- sapply(df$sire_accessid, function(x) {
+        if (is.na(x)) {
+            return(NA)
+        } else if (x %in% wfu_map$accessid) {
+            return(wfu_map$rfid[match(x, wfu_map$accessid)])
+        } else if (x %in% hsw_map$accessid) {
+            return(hsw_map$rfid[match(x, hsw_map$accessid)])
+        } else {
+            return(NA)
+        }
+    })
+
+    # rearrange columns
+    col_order <- c('merged_id','accessid','animalid','rfid','sex','generation','alt_generation',
+                   'dam_merged_id','sire_merged_id','dam_accessid','sire_accessid',
+                   'dam_animalid','sire_animalid','dam_rfid','sire_rfid')
+    df <- df[,col_order]
+    df[df=='?'] <- NA
+
+    print(head(df))
+    print(tail(df))
+
+    datestamp <- format(Sys.time(),'%Y%m%d')
+    outfile <- paste0(basefile, '_all_ids_', datestamp, '.csv')
+    write.csv(df, outfile, row.names=F, quote=F, na='')
+    cat('Translated pedigree saved to', outfile, '\n')
+
+    return(df)
+}
+
 
 # get the kinship of each potential breeder pair in the current generation
 current.kinship <- function(df, # colony df with ALL HSW rats
