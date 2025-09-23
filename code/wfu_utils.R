@@ -200,87 +200,96 @@ format_wfu_raw_ped <- function(
 
 # format a breeder file to assist with pairing in the WFU colony
 create_wfu_breeder_file <- function(
-    pairs,          # R dataframe or path to csv, as output by select.breeders, dam/sire must be animal IDs
-    raw_ped,        # the pedigree for the current WFU generation
-    hsw_ss=NULL,    # HSW shipping sheet, if pairing with shipped HSW rats
+    pairs_accessid,     # R dataframe or path to csv, as output by select.breeders, dam/sire must be access IDs
+    pairs_animalid,     # R dataframe or path to csv, as output by select.breeders, dam/sire must be animal IDs
+    wfu_map,
+    hsw_map,
+    gen,     # the current WFU generation being paired
     outdir=NULL)
 {
-    if (class(pairs) == 'data.frame') {
-        pairs <- pairs
-    } else if (class(pairs) == 'character') {
-        pairs <- read.csv(pairs, na.str=c('','NA','NaN','nan'))
-    } else if (sum(!names(pairs) %in% c('pairs','file')) == 0) {
-        pairs <- pairs$pairs
-    }
-    if (class(hsw_ss) == 'data.frame') {
-        hsw_ss <- hsw_ss
-    } else if (class(hsw_ss) == 'character') {
-        hsw_ss <- read.csv(hsw_ss, na.str=c('','NA','NaN','nan'))
-    } else if (sum(!names(hsw_ss) %in% c('shipping_sheet','file')) == 0) {
-        hsw_ss <- hsw_ss$shipping_sheet
-    }
-    if (file.exists(raw_ped)) {
-        raw_ped <- read.csv(raw_ped, na.str=c('','NA','NaN','nan'))    
-    }
-    gen <- as.numeric(gsub('00$','', raw_ped$Generation[1]))
-    
-    # set pair IDs based on dam IDs
-    pairs$breederpair <- sapply(pairs$dam, function(x) {gsub('WHSF', '', x)})
-
-    pairs$generation <- gen
-    pairs$sire_animalid <- pairs$sire
-    pairs$dam_animalid <- pairs$dam
-
-    all_cols <- c('generation','breederpair','dam_animalid','sire_animalid','kinship',
-                  'dam_rfid','sire_rfid', 'dam_earpunch','sire_earpunch', 'dam_coatcolor',
-                  'sire_coatcolor', 'dam_hsw_cage', 'sire_hsw_cage')    
-    
-    for (col in setdiff(all_cols, names(pairs))) {
-        pairs[[col]] <- NA
-    }
-    for (i in 1:nrow(pairs)) {
-    
-        dam <- pairs$dam[i]
-        
-        if (grepl('^G', dam)) {
-            dam_df <- hsw_ss[hsw_ss$animalid==dam,]
-            pairs$dam_rfid[i] <- as.character(dam_df$rfid)
-            pairs$dam_earpunch[i] <- dam_df$earpunch
-            pairs$dam_coatcolor[i] <- dam_df$coatcolor
-            pairs$dam_hsw_cage[i] <- dam_df$cage
-        } else if (grepl('^W', dam)) {
-            dam_df <- raw_ped[raw_ped[['SWID']]==dam,]
-            pairs$dam_rfid[i] <- dam_df[['Transpondernumber']]
-            pairs$dam_earpunch[i] <- dam_df[['EarPunch']]
-            pairs$dam_coatcolor[i] <- dam_df[['CC']]
-        }
-
-        sire <- pairs$sire[i]
-        
-        if (grepl('^G', sire)) {
-            sire_df <- hsw_ss[hsw_ss$animalid==sire,]
-            pairs$sire_rfid[i] <- as.character(sire_df$rfid)
-            pairs$sire_earpunch[i] <- sire_df$earpunch
-            pairs$sire_coatcolor[i] <- sire_df$coatcolor
-            pairs$sire_hsw_cage[i] <- sire_df$cage
-        } else if (grepl('^W', sire)) {
-            sire_df <- raw_ped[raw_ped[['SWID']]==sire,]
-            pairs$sire_rfid[i] <- sire_df[['Transpondernumber']]
-            pairs$sire_earpunch[i] <- sire_df[['EarPunch']]
-            pairs$sire_coatcolor[i] <- sire_df[['CC']]
-        }
-    }
-
-    if (!is.null(hsw_ss)) {
-        col_order <- all_cols
+    if (is.data.frame(pairs_accessid)) {
+        pairs_accessid <- pairs_accessid
+    } else if (is.list(pairs_accessid) && "pairs" %in% names(pairs_accessid)) {
+        pairs_accessid <- pairs_accessid$pairs
+    } else if (is.character(pairs_accessid) && file.exists(pairs_accessid)) {
+        pairs_accessid <- read.csv(pairs_accessid, na.str=c('','NA','NaN','nan'))
     } else {
-        col_order <- c('generation','breederpair','dam_animalid','sire_animalid','kinship',
-                  'dam_rfid','sire_rfid', 'dam_earpunch','sire_earpunch', 'dam_coatcolor',
-                  'sire_coatcolor')  
+        stop("pairs_accessid must be a data.frame, list with 'pairs' element, or valid file path")
     }
+
+    if (is.data.frame(pairs_animalid)) {
+        pairs_animalid <- pairs_animalid
+    } else if (is.list(pairs_animalid) && "pairs" %in% names(pairs_animalid)) {
+        pairs_animalid <- pairs_animalid$pairs
+    } else if (is.character(pairs_animalid) && file.exists(pairs_animalid)) {
+        pairs_animalid <- read.csv(pairs_animalid, na.str=c('','NA','NaN','nan'))
+    } else {
+        stop("pairs_animalid must be a data.frame, list with 'pairs' element, or valid file path")
+    }
+
+    if (is.data.frame(wfu_map)) {
+        wfu_map <- wfu_map
+    } else if (is.character(wfu_map) && file.exists(wfu_map)) {
+        wfu_map <- read.csv(wfu_map, na.str=c('','NA','NaN','nan'))
+    }
+
+    if (is.data.frame(hsw_map)) {
+        hsw_map <- hsw_map
+    } else if (is.character(hsw_map) && file.exists(hsw_map)) {
+        hsw_map <- read.csv(hsw_map, na.str=c('','NA','NaN','nan'))
+    }
+
+    names(pairs_accessid)[2:3] <- c('dam_accessid','sire_accessid')
+    names(pairs_animalid)[2:3] <- c('dam_animalid','sire_animalid')
+
+    pairs <- cbind(pairs_accessid, pairs_animalid[,2:3])
+    pairs$generation <- gen
+
+    pairs$breederpair_1 <- sapply(pairs$dam_animalid, function(x) {
+        pattern <- '^WHSF(\\d{2})(\\d{2})'
+        dam_id_gen <- sub(pattern, '\\1', x)
+        dam_id <- sub(pattern, '\\2', x)
+        id_gen <- as.integer(dam_id_gen) + 1
+        pair_id <- paste0('WFU', id_gen, dam_id)
+        return(pair_id)
+    })
     
-    # final formatting
-    pairs <- pairs[,col_order]
+    pairs$breederpair_2 <- sapply(pairs$dam_animalid, function(x) {
+        pattern <- '^WHSF(\\d{2})(\\d{2})'
+        dam_id <- sub(pattern, '\\2', x)
+        pair_id <- paste0('WFU', gen, dam_id)
+        return(pair_id)
+    })
+
+    # add RFIDs
+    pairs$dam_rfid <- sapply(pairs$dam_accessid, function(x) {
+        if (is.na(x)) {
+            return(NA)
+        } else if (x %in% wfu_map$accessid) {
+            return(wfu_map$rfid[match(x, wfu_map$accessid)])
+        } else if (x %in% hsw_map$accessid) {
+            return(hsw_map$rfid[match(x, hsw_map$accessid)])
+        } else {
+            return(NA)
+        }
+    })
+    
+    pairs$sire_rfid <- sapply(pairs$sire_accessid, function(x) {
+        if (is.na(x)) {
+            return(NA)
+        } else if (x %in% wfu_map$accessid) {
+            return(wfu_map$rfid[match(x, wfu_map$accessid)])
+        } else if (x %in% hsw_map$accessid) {
+            return(hsw_map$rfid[match(x, hsw_map$accessid)])
+        } else {
+            return(NA)
+        }
+    })
+
+    all_cols <- c('generation','breederpair_1', 'breederpair_2','kinship',
+                  'dam_animalid','sire_animalid','dam_accessid','sire_accessid','dam_rfid','sire_rfid')    
+    pairs <- pairs[,all_cols]
+
     pairs$kinship <-format(round(pairs$kinship, 4), nsmall=4)
     pairs$kinship <- sapply(pairs$kinship, function(x) paste0(x, paste0(rep(0,6-nchar(x)), collapse='')))
 
@@ -288,7 +297,7 @@ create_wfu_breeder_file <- function(
     pairs$paired_dam <- 'NONE'
     pairs$paired_sire <- 'NONE'
     pairs$comments <- 'breederpair assigned using breedHS'
-
+    
     outfile <- NULL
     if (!is.null(outdir)) {
         datestamp <- format(Sys.time(),'%Y%m%d')
@@ -299,6 +308,7 @@ create_wfu_breeder_file <- function(
     }
     return(list(pairs = pairs, file = outfile))
 }
+
 
 # incorporate HSW IDs into the WFU pedigree prior to an animal transfer
 hsw_into_wfu_raw <- function(
@@ -527,3 +537,4 @@ add_hsw_rats_to_wfu_raw_ped <- function(
     write.csv(wfu_out, outfile, row.names=F, quote=F, na='')
 
 }
+
