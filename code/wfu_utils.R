@@ -18,22 +18,22 @@ swid_to_accessid <- function(id, wfu_map) {
 }
 
 # convert access ID to WFU SW.ID
-accessid_to_swid <- function(id, wfu_map) {
-
-    swid <- wfu_map[wfu_map[['accessid']] == id,][['swid']]
-    return(swid)
+accessid_to_swid <- function(accessid, df) {
+    idx <- which(df[['accessid']] == accessid)
+    if (length(idx) > 0) {
+        return(paste(df[['swid']][idx[1]], sep='|'))
+    } else {
+        return(NA)
+    }
 }
 
-accessid_to_rfid <- function(id, wfu_map) {
-
-    id <- as.character(id)
-    wfu_map[['accessid']] <- as.character(wfu_map[['accessid']])
-    if (id %in% wfu_map[['accessid']]) {
-        rfid <- wfu_map[wfu_map[['accessid']] == id,][['rfid']]
+accessid_to_rfid <- function(accessid, df) {
+    idx <- which(df[['accessid']] == accessid)
+    if (length(idx) > 0) {
+        return(paste(df[['rfid']][idx], collapse='|'))
     } else {
-        rfid <- NA
+        return(NA)
     }
-    return(rfid)
 }
 
 
@@ -247,7 +247,7 @@ make_wfu_breeder_file <- function(
     pairs <- cbind(pairs_accessid, pairs_animalid[,2:3])
     pairs$generation <- gen
 
-    pairs$breederpair_1 <- sapply(pairs$dam_animalid, function(x) {
+    pairs$breederpair <- sapply(pairs$dam_animalid, function(x) {
         pattern <- '^WHSF(\\d{2})(\\d{2})'
         dam_id_gen <- sub(pattern, '\\1', x)
         dam_id <- sub(pattern, '\\2', x)
@@ -256,12 +256,6 @@ make_wfu_breeder_file <- function(
         return(pair_id)
     })
     
-    pairs$breederpair_2 <- sapply(pairs$dam_animalid, function(x) {
-        pattern <- '^WHSF(\\d{2})(\\d{2})'
-        dam_id <- sub(pattern, '\\2', x)
-        pair_id <- paste0('WFU', gen, dam_id)
-        return(pair_id)
-    })
 
     # add RFIDs
     pairs$dam_rfid <- sapply(pairs$dam_accessid, function(x) {
@@ -288,8 +282,8 @@ make_wfu_breeder_file <- function(
         }
     })
 
-    all_cols <- c('generation','breederpair_1', 'breederpair_2','kinship',
-                  'dam_animalid','sire_animalid','dam_accessid','sire_accessid','dam_rfid','sire_rfid')    
+    all_cols <- c('generation','breederpair','kinship','dam_animalid','sire_animalid',
+                  'dam_accessid','sire_accessid','dam_rfid','sire_rfid')    
     pairs <- pairs[,all_cols]
 
     pairs$kinship <-format(round(pairs$kinship, 4), nsmall=4)
