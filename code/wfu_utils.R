@@ -26,6 +26,8 @@ accessid_to_swid <- function(id, wfu_map) {
 
 accessid_to_rfid <- function(id, wfu_map) {
 
+    id <- as.character(id)
+    wfu_map[['accessid']] <- as.character(wfu_map[['accessid']])
     if (id %in% wfu_map[['accessid']]) {
         rfid <- wfu_map[wfu_map[['accessid']] == id,][['rfid']]
     } else {
@@ -199,7 +201,7 @@ format_wfu_raw_ped <- function(
 }
 
 # format a breeder file to assist with pairing in the WFU colony
-create_wfu_breeder_file <- function(
+make_wfu_breeder_file <- function(
     pairs_accessid,     # R dataframe or path to csv, as output by select.breeders, dam/sire must be access IDs
     pairs_animalid,     # R dataframe or path to csv, as output by select.breeders, dam/sire must be animal IDs
     wfu_map,

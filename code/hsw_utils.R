@@ -388,7 +388,7 @@ wfu_into_hsw_gen <- function(hsw_raw,   # an HSW assignment sheet (csv) w/ breed
 
 
 # format a breeder file to assist with pairing in the HSW colony
-create_hsw_breeder_file <- function(
+make_hsw_breeder_file <- function(
     pairs,          # R dataframe or path to csv, as output by select.breeders, dam/sire must be animal IDs
     df,             # colony dataframe or assignment file
     wfu_ss=NULL,    # WFU shipping sheet, if pairing with shipped WFU rats
@@ -500,7 +500,7 @@ create_hsw_breeder_file <- function(
 # count the parental breeder pairs that have been or currently need assignment/pairing
 count_breeder_pairs <- function(
     assignments, # assignment sheet with ALL assignments so far
-    breederpairs,   # 'breederpair file' w/ all breeder pairings so far, or the output from create_breeder_file()
+    breederpairs,   # 'breederpair file' w/ all breeder pairings so far, or the output from make_breeder_file()
     outdir=NULL)
 {
     if (class(assignments) == 'character') {
@@ -1515,7 +1515,7 @@ map_merged_ids_hsw <- function(
 }
 
 # save a shipping sheet with all rats identified as best-match breeders to send to WFU
-create_hsw_shipping_sheet <- function(
+make_hsw_shipping_sheet <- function(
     pairs,        # R dataframe or csv path, as output by select.breeders, dam/sire must be animal IDs
     assignments,  # HSW colony assignments for the current generation of rats to be sent
     n_ship,       # the total number of rats to be shipped (must be <= nrow(pairs)
