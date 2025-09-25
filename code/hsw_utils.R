@@ -1406,61 +1406,6 @@ final_breeder_file <- function(
 }
 
 
-concat_peds <- function(
-    directory,
-    stem,
-    outstem=NULL,
-    return_df=FALSE
-) {
-    ped_files <- list.files(directory, full.names=T, pattern=stem)
-    all_peds <- list()
-    gens <- c()
-
-    # for (file in ped_files) {
-    for (i in 1:length(ped_files)) {
-        ped <- read.csv(ped_files[[i]])
-
-        if ('Generation' %in% colnames(ped)) {
-            min_gen <- gsub('00$','', min(ped['Generation']))
-            max_gen <- gsub('00$','', max(ped['Generation']))
-        } else {
-            min_gen <- min(ped['generation'])
-            max_gen <- max(ped['generation'])
-        }
-        gens <- c(gens, min_gen, max_gen)
-        all_peds[[i]] <- ped
-    }
-
-    min_gen <- min(as.numeric(gens))
-    max_gen <- max(as.numeric(gens))
-    min_nchar <- nchar(min_gen)
-    max_nchar <- nchar(max_gen)    
-
-    full_ped <- do.call(rbind, all_peds)
-
-    if ('SWID' %in% colnames(full_ped)) {
-        full_ped <- full_ped[order(full_ped$Generation, full_ped$SWID),]
-        min_gen <- ifelse(min_nchar==1, paste0('0',min_gen), min_gen)
-        max_gen <- ifelse(max_nchar==1, paste0('0',max_gen), max_gen)
-
-    } else {
-        full_ped <- full_ped[order(full_ped$generation, full_ped$animalid),]
-        min_gen <- ifelse(min_nchar==2, paste0('0',min_gen), min_gen)
-        max_gen <- ifelse(max_nchar==2, paste0('0',max_gen), max_gen)
-
-    }
-
-    if (!is.null(outstem)) {
-        outfile <- file.path(directory, paste0(outstem, min_gen, '_', max_gen, '.csv'))
-        write.csv(full_ped, outfile, row.names=F, quote=F, na='')
-        cat('Concatenated pedigree saved to', outfile, '\n')
-    }
-    if (return_df) {
-        return(full_ped)
-    }
-}
-
-
 # create a map for HSW IDs used in a merged pedigree
 map_merged_ids_hsw <- function(
     merged_ped, # path to a complete merged pedigree

@@ -1523,3 +1523,61 @@ get_fam <- function(id, wfu_map, hsw_map) {
     
     return(fam) 
 }
+
+concat_peds <- function(
+    directory,
+    stem,
+    outdir=NULL,
+    outstem=NULL,
+    return_df=FALSE
+) {
+    ped_files <- list.files(directory, full.names=T, pattern=stem)
+    all_peds <- list()
+    gens <- c()
+
+    for (i in 1:length(ped_files)) {
+        ped <- read.csv(ped_files[[i]])
+
+        if ('Generation' %in% colnames(ped)) {
+            min_gen <- gsub('00$','', min(ped['Generation']))
+            max_gen <- gsub('00$','', max(ped['Generation']))
+        } else {
+            min_gen <- min(ped['generation'])
+            max_gen <- max(ped['generation'])
+        }
+        gens <- c(gens, min_gen, max_gen)
+        all_peds[[i]] <- ped
+    }
+
+    min_gen <- min(as.numeric(gens))
+    max_gen <- max(as.numeric(gens))
+    min_nchar <- nchar(min_gen)
+    max_nchar <- nchar(max_gen)    
+
+    full_ped <- do.call(rbind, all_peds)
+
+    if (grepl('wfu',ped_files[i])) {
+        id_col <- ifelse(grepl('wfu_raw',basename(ped_files[i])), 'SWID', 'animalid') 
+        gen_col <- ifelse(grepl('wfu_raw',basename(ped_files[i])), 'SWID', 'animalid') 
+        full_ped <- full_ped[order(full_ped[[gen_col]], full_ped[[id_col]]),]
+        min_gen <- ifelse(min_nchar==1, paste0('0',min_gen), min_gen)
+        max_gen <- ifelse(max_nchar==1, paste0('0',max_gen), max_gen)
+
+    } else if (grepl('hsw',ped_files[i])) {
+        full_ped <- full_ped[order(full_ped$generation, full_ped$animalid),]
+        min_gen <- ifelse(min_nchar==2, paste0('0',min_gen), min_gen)
+        max_gen <- ifelse(max_nchar==2, paste0('0',max_gen), max_gen)
+
+    }
+
+    if (!is.null(outstem)) {
+        if (is.null(outdir)) {outdir <- directory}
+        dir.create(outdir, recursive=T, showWarnings=F)
+        outfile <- file.path(outdir, paste0(outstem, '_', min_gen, '_', max_gen, '.csv'))
+        write.csv(full_ped, outfile, row.names=F, quote=F, na='')
+        cat('Concatenated pedigree saved to', outfile, '\n')
+    }
+    if (return_df) {
+        return(full_ped)
+    }
+}
