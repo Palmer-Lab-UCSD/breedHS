@@ -1536,6 +1536,7 @@ concat_peds <- function(
     gens <- c()
 
     for (i in 1:length(ped_files)) {
+
         ped <- read.csv(ped_files[[i]])
 
         if ('Generation' %in% colnames(ped)) {
@@ -1556,14 +1557,14 @@ concat_peds <- function(
 
     full_ped <- do.call(rbind, all_peds)
 
-    if (grepl('wfu',ped_files[i])) {
+    if (grepl('wfu',basename(ped_files[i]))) {
         id_col <- ifelse(grepl('wfu_raw',basename(ped_files[i])), 'SWID', 'animalid') 
         gen_col <- ifelse(grepl('wfu_raw',basename(ped_files[i])), 'SWID', 'animalid') 
         full_ped <- full_ped[order(full_ped[[gen_col]], full_ped[[id_col]]),]
         min_gen <- ifelse(min_nchar==1, paste0('0',min_gen), min_gen)
         max_gen <- ifelse(max_nchar==1, paste0('0',max_gen), max_gen)
 
-    } else if (grepl('hsw',ped_files[i])) {
+    } else if (grepl('hsw',basename(ped_files[i]))) {
         full_ped <- full_ped[order(full_ped$generation, full_ped$animalid),]
         min_gen <- ifelse(min_nchar==2, paste0('0',min_gen), min_gen)
         max_gen <- ifelse(max_nchar==2, paste0('0',max_gen), max_gen)
