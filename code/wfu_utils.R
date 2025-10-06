@@ -424,7 +424,7 @@ map_merged_ids_wfu <- function(
 # function to incorporate HSW rats into the WFU pedigree using a shipping sheet from HSW
 add_hsw_rats_to_wfu_raw_ped <- function(
     ped,    # path to any raw pedigree file (single- or multi-gen, xlsx or csv)
-    hsw_shipping_sheet, # path to shipping sheet (xlsx or csv)
+    hsw_shipping_sheet, # path to shipping sheet (xlsx or csv), or dataframe; can use HSW colony df for hypothetical pairings
     add_to_gen, # the WFU generation into which to incorporate HSW rats
     outdir) # desired output directory path
 {   
@@ -460,7 +460,9 @@ add_hsw_rats_to_wfu_raw_ped <- function(
     ped_gens <- ped_gens[order(as.numeric(names(ped_gens)))]
 
     # read in shipping sheet
-    if (file_ext(hsw_shipping_sheet) == 'xlsx') {
+    if (is.data.frame(hsw_shipping_sheet)) {
+        hsw_ss <- hsw_shipping_sheet
+    } else if (file_ext(hsw_shipping_sheet) == 'xlsx') {
         # suppress warnings temporarily - excel formatting can produce a lot
         oldw <- getOption('warn')
         options(warn = -1)
@@ -478,7 +480,7 @@ add_hsw_rats_to_wfu_raw_ped <- function(
     # check column formatting
     missing_cols <- setdiff(keep_cols, colnames(hsw_ss))
     if (length(missing_cols)>0) {
-        cat('Make sure the pedigree has the following columns:', missing_cols, '\n')
+        cat('Make sure the shipping sheet has the following columns:', missing_cols, '\n')
         cat('File:', hsw_shipping_sheet, '\n')
     }
     
