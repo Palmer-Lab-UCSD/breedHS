@@ -1370,11 +1370,17 @@ current.kinship <- function(df, # colony df with ALL HSW rats
 {
 
     df <- read.csv(df)
-    if (as.numeric(df$generation[1]) != as.numeric(last_gen)) {
-        stop(paste0('Colony dataframe generation (', df$generation[1], 
-                   ') and last_gen (', last_gen, ') must be identical'))
+    # if (as.numeric(df$generation[1]) != as.numeric(last_gen)) {
+    #     stop(paste0('Colony dataframe generation (', df$generation[1], 
+    #                ') and last_gen (', last_gen, ') must be identical'))
+    # }
+    if (!as.numeric(last_gen) %in% as.numeric(df$generation)) {
+        stop(paste0('Pedigree generation ', last_gen, 'is not represented in the dataframe'))
     }
-
+    # if the df has sex in 1/0 format, convert to M/F
+    df$sex[which(df$sex==1)] <- 'M'
+    df$sex[which(df$sex==0)] <- 'F'
+    
     # format the pedigree for kinship estimation
     ped_for_kinship <- format.pedigree(
         first_gen = first_gen,
@@ -1387,7 +1393,7 @@ current.kinship <- function(df, # colony df with ALL HSW rats
     
     # estimate kinship across the pedigree
     k_all <- kinship(use_ped)
-    
+
     # subset the kinship matrix to only the final generation
     if (is.null(id_map)) {
         kinship_ids <- df$animalid
@@ -1473,12 +1479,12 @@ get_wfu_fam <- function(accessid) {
 
 get_fam <- function(id, wfu_map, hsw_map) {
     
-    if (file.exists(wfu_map)) {
+    if (is.character(wfu_map) & file.exists(wfu_map)) {
       wfu_map <- read.csv(wfu_map)
     } else if (class(wfu_map)=='data.frame') {
       wfu_map <- wfu_map
     }
-    if (file.exists(hsw_map)) {
+    if (is.character(hsw_map) & file.exists(hsw_map)) {
       hsw_map <- read.csv(hsw_map)
     } else if (class(hsw_map)=='data.frame') {
       hsw_map <- hsw_map
