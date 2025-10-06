@@ -1477,7 +1477,7 @@ make_hsw_shipping_sheet <- function(
         assignments <- read.csv(assignments)
     }
     gen <- assignments$generation[1]
-    breeders <- assignments[assignments$assignment == 'hsw_breeders' & assignments$sex=='M',]
+    breeders <- assignments[assignments$assignment == 'wfu_breeders' & assignments$sex=='M',]
     breeders$cage <- NA
     breeders$usage <- 'breeder'
     colnames(breeders)[which(colnames(breeders)=='generation')] <- 'hsw_generation'
@@ -1522,6 +1522,7 @@ make_hsw_shipping_sheet <- function(
     return(list(shipping_sheet = ss, file = outfile))
 }
 
+# convert a finalized pairings file into a raw HSW pedigree
 final_hsw_breeders_to_raw_ped <- function(
     pairs,   # path or dataframe - final breeders file to convert to pedigree
     colony_df, # path or dataframe - the current colony dataframe
@@ -1574,4 +1575,35 @@ final_hsw_breeders_to_raw_ped <- function(
     cat('Raw HS West pedigree saved to', outfile, '\n')
     
     return(ped)
+}
+
+# incorporate WFU IDs into the HSW pedigree following an animal transfer
+one_rat_per_hsw_fam <- function(
+    colony_df, # colony dataframe (csv or df)
+    sex='M'    # the sex to sample ('M','F', or 'both')
+) {
+    if (is.data.frame(colony_df)) {
+        df <- colony_df
+    } else if (is.character(colony_df) & file.exists(colony_df)) {
+        df <- read.csv(colony_df)
+    } else {
+        stop('colony_df must be either a file path or R dataframe')
+    }
+
+    # sample one rat per sex per family
+    m_df <- do.call(rbind, lapply(split(df[df$sex == 'M', ], df[df$sex == 'M', ]$breederpair), 
+                        function(x) x[sample(nrow(x), 1), ]))
+    f_df <- do.call(rbind, lapply(split(df[df$sex == 'F', ], df[df$sex == 'F', ]$breederpair), 
+                        function(x) x[sample(nrow(x), 1), ]))
+
+    if (sex=='M') {
+        df <- m_df
+    } else if (sex=='F') {
+        df <- f_df
+    } else {
+        df <- rbind(m_df, f_df)
+        df <- df[order(df$breederpair, df$animalid),]
+    }
+
+    return(df)
 }
