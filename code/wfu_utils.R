@@ -135,6 +135,7 @@ format_wfu_raw_ped <- function(
     outdir) # desired output directory path
 {
 
+    print(paste('ped:', ped))
     if (file.exists(wfu_map)) {
         wfu_map <- read.csv(wfu_map)
     }
@@ -164,8 +165,8 @@ format_wfu_raw_ped <- function(
     wfu$sire_rfid <- sapply(wfu$sire, function(x) accessid_to_rfid(x, wfu_map))
 
     # rearrange columns
-    col_order <- c('id','dam','sire','sex','generation','rfid','animalid',
-                   'dam_rfid','sire_rfid','dam_animalid','sire_animalid')
+    col_order <- c('id','sire','dam','sex','generation','rfid','animalid',
+                   'sire_rfid','dam_rfid','sire_animalid','dam_animalid')
     wfu <- wfu[,col_order]
 
     # format NA's for compatibility with breedail

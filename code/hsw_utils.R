@@ -270,8 +270,8 @@ format_hsw_raw_ped <- function(
         }
     }, USE.NAMES = FALSE))
 
-    col_order <- c('accessid','dam','sire','sex','generation','rfid','animalid',
-                   'dam_rfid','sire_rfid','dam_animalid','sire_animalid')
+    col_order <- c('accessid','sire','dam','sex','generation','rfid','animalid',
+                   'sire_rfid','dam_rfid','sire_animalid','dam_animalid')
     ped <- ped[,col_order]
     names(ped)[which(names(ped)=='accessid')] <- 'id'
     ped <- ped[order(as.numeric(ped$id)),]
@@ -336,8 +336,8 @@ wfu_into_hsw_gen <- function(hsw_raw,   # an HSW assignment sheet (csv) w/ breed
     colnames(hsw) <- c('rfid','generation','animalid','id','sex','dam_animalid','sire_animalid')
     hsw$dam <- sapply(hsw$dam_animalid, animalid_to_accessid)
     hsw$sire <- sapply(hsw$sire_animalid, animalid_to_accessid)
-    col_order <- c('id','dam','sire','sex','generation','rfid',
-                   'animalid','dam_animalid','sire_animalid')
+    col_order <- c('id','sire','dam','sex','generation','rfid',
+                   'animalid','sire_animalid','dam_animalid')
     hsw <- hsw[,col_order]
     hsw <- hsw[!is.na(hsw$id),]
 
