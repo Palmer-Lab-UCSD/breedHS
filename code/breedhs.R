@@ -37,6 +37,7 @@ find.ped.errors <- function(first_gen,  # the desired starting generation
   missing_kin_files <- c()
   empty_parents <- list()
   kin_no_parents <- list()
+  kin_dup_parents <- list()
 
   first_nchar <- nchar(first_gen)
   last_nchar <- nchar(last_gen)
@@ -79,16 +80,17 @@ find.ped.errors <- function(first_gen,  # the desired starting generation
     
     if (i != first_gen){
       ## check that parents are in the previous generation
-      tmp <- check.ped(ped.tmp , ped.prev)   
-      if (length(tmp) > 0){
-        missing_parents <- c(missing_parents, tmp)
-        missing_gens <- c(missing_gens, rep(i,length(tmp)))
-        missing_parents_files <- c(missing_parents_files, rep(prev.file, length(tmp)))
-        missing_kin_files <- c(missing_kin_files, rep(file.name, length(tmp)))
+      tmp_missing <- check.ped(ped.tmp , ped.prev)   
+      
+      if (length(tmp_missing) > 0) {
+        missing_parents <- c(missing_parents, tmp_missing)
+        missing_gens <- c(missing_gens, rep(i,length(tmp_missing)))
+        missing_parents_files <- c(missing_parents_files, rep(prev.file, length(tmp_missing)))
+        missing_kin_files <- c(missing_kin_files, rep(file.name, length(tmp_missing)))
 
         # get IDs of offspring whose parents are missing
-        dams <- unique(ped.tmp[,2])
-        sires <- unique(ped.tmp[,3])
+        dams <- unique(ped.tmp[,3])
+        sires <- unique(ped.tmp[,2])
         dams <- dams[which(dams != 0)]
         sires <- sires[which(sires != 0)]
         missing_dams_idx <- which(!dams %in% ped.prev[,1])
@@ -108,8 +110,8 @@ find.ped.errors <- function(first_gen,  # the desired starting generation
         
           for (r in 1:nrow(kin_missing_parents)) {
             id <- kin_missing_parents$id[r]
-            dam <- ped.tmp[,2][ped.tmp[,1] == id]
-            sire <- ped.tmp[,3][ped.tmp[,1] == id]
+            dam <- ped.tmp[,3][ped.tmp[,1] == id]
+            sire <- ped.tmp[,2][ped.tmp[,1] == id]
             if (dam %in% missing_dams) {
               kin_missing_parents$missing_dam[r] <- dam
             }
@@ -120,11 +122,11 @@ find.ped.errors <- function(first_gen,  # the desired starting generation
           kin_no_parents[[i]] <- kin_missing_parents
         }
 
-        cat('Generation', paste0(i, ':'), length(tmp), 'parent IDs were not found in generation', i-1, '\n')
+        cat('Generation', paste0(i, ':'), length(tmp_missing), 'parent IDs were not found in generation', i-1, '\n')
         if (print_ids) {
-          cat('\t', sort(tmp), '\n')
+          cat('\t', sort(tmp_missing), '\n')
         }
-      }
+      } # end of if(length(tmp)>0)
 
       ## check for missing values
       parent_nans <- ped.tmp[(is.na(ped.tmp$dam)) | (is.na(ped.tmp$sire)),]
@@ -133,15 +135,40 @@ find.ped.errors <- function(first_gen,  # the desired starting generation
         parent_nans <- parent_nans[,c('generation','id','dam','sire','sex')]
         empty_parents[[i]] <- parent_nans
       }
-    }
+
+        # get IDs of offspring whose parents share the same ID
+        dup_parent_idx <- which(ped.tmp[,2]==ped.tmp[,3])
+        ids_w_dup_parents <- ped.tmp[,1][dup_parent_idx]
+        dup_dams <- ped.tmp[,3][dup_parent_idx]
+        dup_sires <- ped.tmp[,2][dup_parent_idx]
+
+        if (length(dup_parent_idx) > 0) {
+            dup_parents <- data.frame(
+                id = ids_w_dup_parents,
+                gen = i,
+                parent_gen = i-1,
+                dam = dup_dams,
+                sire = dup_sires)
+        
+            kin_dup_parents <- c(kin_dup_parents, list(dup_parents))
+            cat('Generation', paste0(i, ':'), 'Dam and sire share the same ID for', nrow(dup_parents), 'samples', '\n')
+            if (print_ids) {
+                cat('\t', paste0(ids_w_dup_parents, ' (', dup_dams, ')'), '\n')
+            }
+        }
+
+    } # end of if(!i==first_gen)
+
     ped.prev <- ped.tmp	
     ped <- rbind(ped,ped.tmp)
-  }
+
+  } # end of first_gen:last_gen loop
   
   empty_parents <- do.call(rbind, empty_parents)
   kin_no_parents <- do.call(rbind, kin_no_parents)
+  kin_dup_parents <- do.call(rbind, kin_dup_parents)
 
-  if ((is.null(missing_parents)) & (length(empty_parents == 0))){
+  if ((is.null(missing_parents)) & (length(empty_parents == 0)) & (length(kin_dup_parents) == 0)){
       cat('No errors found in the pedigree \n')
   } else {
       ## write missing parents to a file for investigation
@@ -180,7 +207,7 @@ find.ped.errors <- function(first_gen,  # the desired starting generation
             cat(outfile2, '\n')
           }
 
-          if (length(empty_parents == 0)) {
+          if (length(empty_parents != 0)) {
 
             outstr3 <- paste0(file_stem, '_',
                             rep('0',(last_nchar-first_nchar)),
@@ -190,11 +217,25 @@ find.ped.errors <- function(first_gen,  # the desired starting generation
             write.csv(empty_parents, outfile3, row.names=F, quote=F)
             cat(outfile3, '\n')
           }
+
+          if (length(kin_dup_parents) != 0) {
+
+            outstr4 <- paste0(file_stem, '_',
+                            rep('0',(last_nchar-first_nchar)),
+                            first_gen, '_', last_gen,
+                            '_ped_error_parents_same_ids_', datestamp, '.csv')
+            outfile4 <- file.path(errs_dir, outstr4)
+            write.csv(kin_dup_parents, outfile4, row.names=F, quote=F)
+            cat(outfile4, '\n')
+
+          }
       }
+
       if (return_ids) {
           return(list(unfound_parents = missing_parents,
                       empty_parents = empty_parents,
-                      offspring_without_parents = kin_no_parents))
+                      offspring_without_parents = kin_no_parents,
+                      dup_parent_ids = kin_dup_parents))
       }
   }
 }
