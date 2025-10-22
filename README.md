@@ -32,25 +32,30 @@ generations after WFU gen042 and any HSW generations after HSW gen096. While an 
 gen096, for the sake of a consistent numbering convention required for breedail, WFU generations before gen042 can 
 also be considered HSW generations 54-95. 
 
-<img src="readme_resources/hsw_colony_history_breedHS.png" width=350 height=400>
+### Colony exchanges
+<img src="readme_resources/hsw_colony_history_gen107.png" width=350 height=400>
 
 The two colonies regularly exchange animals to breed between them in order to minimize drift between colonies and 
-maintain outbreeding across the greater HS rat population. In March 2024, WFU sent 43 male rats to HSW (event 'B' above) 
-as the first exchange. Different generation times and ID conventions between the colonies require a complicated 
-merging algorithm in order to produce a joint pedigree usable for breedail. Here, breedHS automates these merges to 
-enable kinship estimation and breeder selection using breedail. 
+maintain outbreeding across the greater HS rat population. These exchanges include:
+- In March 2024, WFU sent 43 male rats to HSW (event 'B' above)
+- In late 2025 (expected), HSW will send 50 gen107 males to incorporate into WFU gen052, in exchange for 44 WFU gen051 males, 
+which will be incorporated into HSW gen108.
+
+Different generation times and ID conventions between the colonies require a complicated 
+merging algorithm in order to produce a joint pedigree usable for breedail. **breedHS automates these merges to 
+enable kinship estimation and breeder selection using breedail.**
 
 ## Files
 
 * [kinship.R](code/kinship.R) defines functions to calculate and update pairwise kinship coefficients. These are 
-core breedail functions unmodified from the original repository.
+**core breedail functions unmodified from the original repository.**
 
-* [find_mates.R](code/find_mates.R) defines functions to pairs breeders in a given generation of the pedigree in such 
+* [find_mates.R](code/find_mates.R) defines functions to pair breeders in a given generation of the pedigree in such 
 a way that they will produce the smallest average inbreeding coefficients in the offspring. These are 
-core breedail functions unmodified from the original repository.
+**core breedail functions unmodified from the original repository.**
 
-* [utils.R](code/utils.R) defines pre- and post-processing functions to format data input and output from breedail, and
-wrapper functions to facilitate the execution of breedail's core algorithm. These are all generalizable to any 
+* [breedHS.R](code/breedhs.R) defines pre- and post-processing functions to format data input and output from breedail, and
+**wrapper functions to facilitate the execution of breedail's core algorithm.** Many of these are generalizable to any 
 population using breedail for kinship estimation and breeder selection, and/or any pair of populations for whom a 
 common, joint pedigree is needed. 
 Some important functions:
@@ -67,20 +72,24 @@ Some important functions:
     into breedail. Robust to differences in populations in their generation count and numbering convention, sample ID 
     naming convention, and the number and direction (either one-directional or bidirectional) of exchanges.
 
-* [HSW_utils.R](code/HSW_utils.R) defines pre-processing functions specifically tailored to data formatting 
-conventions at HSW and WFU. While these are not generalizable to other populations as-is, they may provide a useful 
+The other functions in this script are useful for converting pedigrees between WFU and HSW-specific formatting conventions.
+
+* [HSW_utils.R](code/hsw_utils.R) defines pre- and post-processing functions **specifically tailored to data formatting 
+conventions at HSW.** While these are not generalizable to other populations as-is, they may provide a useful 
 template for other investigators interested in using breedail. 
 
-## Example data
-:construction: :construction: 
-A comprehensive example workflow is currently in progress. Come back soon!
-:construction: :construction: 
+* [WFU_utils.R](code/wfu_utils.R) defines pre- and post-processing functions **specifically tailored to data formatting 
+conventions at WFU.** As above, they may provide a useful template for other investigators interested in using breedail. 
+
 
 ## Usage
-:construction: :construction: 
-A comprehensive example workflow is currently in progress. Come back soon!
-:construction: :construction: 
+:construction: :construction: '
 
-See [orig_breedail_example.R](code/orig_breedail_example.R) for an example of how to use these functions to select 
-mouse breeders in generation F10 of an advanced intercross line. The pedigree data for this mouse population are found
-in [data](data). This script should generate matings similar to those in [F10pairs.txt](results/F10pairs.txt).
+Code in the [`inst/`](code/inst/) directory can be used as-is (after updating necessary arguments and input files) to execute pairing at either HSW or WFU under different pairing scenarios. These include:
+- Regular HSW pairing during non-exchange generations
+- Regular WFU pairing during non-exchange generations
+- Pairing conducted at HSW when receiving/incorporating new rats from WFU
+- Pairing conducted at WFU when receiving/incorporating new rats from HSW
+
+Comprehensive examples for the above are currently in progress. Come back soon!
+:construction: :construction: 
