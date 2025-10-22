@@ -134,8 +134,7 @@ format_wfu_raw_ped <- function(
     wfu_map, # path to WFU ID map
     outdir) # desired output directory path
 {
-
-    print(paste('ped:', ped))
+    cat('Using WFU raw ped:', ped, '\n')
     if (file.exists(wfu_map)) {
         wfu_map <- read.csv(wfu_map)
     }
