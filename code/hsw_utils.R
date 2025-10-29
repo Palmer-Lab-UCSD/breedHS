@@ -1235,19 +1235,17 @@ final_breeder_file <- function(
                 print(df)
             }
         }
-    } #else {
-
-        pairs <- proposed_pairs[,keep_cols]
-        pairs$dam_accessid <- sapply(pairs$dam_animalid, animalid_to_accessid)
-        pairs$sire_accessid <- sapply(pairs$sire_animalid, animalid_to_accessid)
-
-        # if only comments differ between files, incorporate new comments
-        if (identical(proposed_pairs$comments, colony_pairs$comments)) {
-            pairs$comments <- proposed_pairs$comments
-        } else {
-            pairs$comments <- merge_comments(proposed_pairs$comments, colony_pairs$comments)
-        }
-    #}
+    } 
+    
+    pairs <- proposed_pairs[,keep_cols]
+    pairs$dam_accessid <- sapply(pairs$dam_animalid, animalid_to_accessid)
+    pairs$sire_accessid <- sapply(pairs$sire_animalid, animalid_to_accessid)
+    # if only comments differ between files, incorporate new comments
+    if (identical(proposed_pairs$comments, colony_pairs$comments)) {
+        pairs$comments <- proposed_pairs$comments
+    } else {
+        pairs$comments <- merge_comments(proposed_pairs$comments, colony_pairs$comments)
+    }
 
     # incorporate alternative pairings into the file
     if (!is.null(alt_pairs)) {
@@ -1298,7 +1296,8 @@ final_breeder_file <- function(
     # incorporate replacement pairings into the file
     if (!is.null(rep_pairs)) {
 
-        rep_pairs <- rep_pairs[rep_pairs$paired_with != 'NONE',]
+        rep_pairs <- rep_pairs[rep_pairs$replaced_with != 'NONE',]
+        print(str(rep_pairs))
         rep_pairs$dam_id <- NA
         rep_pairs$sire_id <- NA
         rep_pairs$dam_rfid <- NA
@@ -1314,8 +1313,8 @@ final_breeder_file <- function(
             kinship <- format(round(rep_pairs$kinship[i], 4), nsmall=4)
             colony_comment <- rep_pairs$comments[i]
             id_to_replace <- rep_pairs$id_to_replace[i]
-            id <- rep_pairs$id_to_pair[i]
-            mate_id <- rep_pairs$paired_with[i]
+            id <- rep_pairs$to_pair_with_id[i]
+            mate_id <- rep_pairs$replaced_with[i]
             id_int <- tail(strsplit(id, "_")[[1]], 1)
             id_sex <- ifelse(as.integer(id_int) > 8, 'F', 'M')
             if (id_sex=='F') {
@@ -1408,7 +1407,7 @@ final_breeder_file <- function(
 
     } # end of new_pairs
 
-    pairs$kinship <- format(round(pairs$kinship, 4), nsmall = 4)
+    pairs$kinship <- format(round(as.numeric(pairs$kinship), 4), nsmall = 4)
 
     if (!is.null(outdir)) {
         datestamp <- format(Sys.time(),'%Y%m%d')
