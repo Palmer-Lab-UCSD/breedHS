@@ -83,7 +83,7 @@ conventions at WFU.** As above, they may provide a useful template for other inv
 
 
 ## Usage
-:construction: :construction: '
+:construction: :construction: 
 
 Code in the [`inst/`](code/inst/) directory can be used as-is (after updating necessary arguments and input files) to execute pairing at either HSW or WFU under different pairing scenarios. These include:
 - Regular HSW pairing during non-exchange generations
@@ -91,5 +91,5 @@ Code in the [`inst/`](code/inst/) directory can be used as-is (after updating ne
 - Pairing conducted at HSW when receiving/incorporating new rats from WFU
 - Pairing conducted at WFU when receiving/incorporating new rats from HSW
 
-Comprehensive examples for the above are currently in progress. Come back soon!
+Comprehensive examples for the above are currently in progress. Come back soon!  
 :construction: :construction: 
