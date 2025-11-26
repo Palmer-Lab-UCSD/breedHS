@@ -530,9 +530,16 @@ add_hsw_rats_to_wfu_raw_ped <- function(
     # re-concatenate all pedigree generations
     wfu_out <- do.call(rbind, ped_gens)
     
-    datestamp <- format(Sys.time(),'%Y%m%d')
-    outfile <- file.path(outdir, paste0('wfu_raw_ped_complete_', datestamp, '.csv'))
-    write.csv(wfu_out, outfile, row.names=F, quote=F, na='')
+    # get all generations in the full ped
+    all_gens <- as.numeric(unique(gsub('00$','', wfu_out$Generation)))
+    min_gen <- min(all_gens); max_gen <- max(all_gens)
+    if (nchar(min_gen)==1) min_gen <- paste0('0', min_gen)
+    if (nchar(max_gen)==1) max_gen <- paste0('0', max_gen)
 
+    datestamp <- format(Sys.time(),'%Y%m%d')
+    outfile <- file.path(outdir, paste0('wfu_raw_ped_complete_', min_gen, '_', max_gen, '.csv'))
+    write.csv(wfu_out, outfile, row.names=F, quote=F, na='')
+    cat('Complete raw pedigree saved to', outfile, '\n')
+    return(outfile)
 }
 

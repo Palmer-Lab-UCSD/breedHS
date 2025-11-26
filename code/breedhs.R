@@ -17,7 +17,6 @@ encode.sex <- function(ped) {
 }
 
 # identify pedigree errors 
-# (for now, only identifies missing parents)
 find.ped.errors <- function(first_gen,  # the desired starting generation
                             last_gen,   # the desired last generation
                             data_dir,   # the directory housing pedigree files
@@ -38,6 +37,7 @@ find.ped.errors <- function(first_gen,  # the desired starting generation
   empty_parents <- list()
   kin_no_parents <- list()
   kin_dup_parents <- list()
+  missing_sex <- c()
 
   first_nchar <- nchar(first_gen)
   last_nchar <- nchar(last_gen)
@@ -74,6 +74,13 @@ find.ped.errors <- function(first_gen,  # the desired starting generation
     ped.tmp <- cbind(ped.ids, ped.tmp[ped.cols])
     colnames(ped.tmp) <- c('id', ped.cols)
 
+    # check if any IDs are missing sex values
+    if (sum(is.na(ped.tmp[,4]))>0) {
+        missing_sex_idx <- which(is.na(ped.tmp[,4]))
+        gen_missing_sex <- ped.tmp[,1][missing_sex_idx]
+        names(gen_missing_sex) <- i
+        missing_sex <- c(missing_sex, gen_missing_sex)
+    }
     # remove parental data from the first generation
     if (i == first_gen){
       ped.tmp[,c(2,3)] <- 0}
@@ -82,51 +89,40 @@ find.ped.errors <- function(first_gen,  # the desired starting generation
       ## check that parents are in the previous generation
       tmp_missing <- check.ped(ped.tmp , ped.prev)   
       
-      if (length(tmp_missing) > 0) {
+    if (length(tmp_missing) > 0) {
         missing_parents <- c(missing_parents, tmp_missing)
         missing_gens <- c(missing_gens, rep(i,length(tmp_missing)))
         missing_parents_files <- c(missing_parents_files, rep(prev.file, length(tmp_missing)))
         missing_kin_files <- c(missing_kin_files, rep(file.name, length(tmp_missing)))
 
         # get IDs of offspring whose parents are missing
-        dams <- unique(ped.tmp[,3])
-        sires <- unique(ped.tmp[,2])
-        dams <- dams[which(dams != 0)]
-        sires <- sires[which(sires != 0)]
-        missing_dams_idx <- which(!dams %in% ped.prev[,1])
-        missing_sires_idx <- which(!sires %in% ped.prev[,1])
-        missing_idx <- union(missing_dams_idx, missing_sires_idx)
-        missing_dams <- dams[missing_dams_idx]
-        missing_sires <- sires[missing_sires_idx]
+        has_missing_dam <- ped.tmp[,3] %in% tmp_missing
+        has_missing_sire <- ped.tmp[,2] %in% tmp_missing
+        offspring_idx <- which(has_missing_dam | has_missing_sire)
 
-        if (length(missing_idx) > 0) {
-
-          kin_missing_parents <- data.frame(
-            id = ped.tmp[,1][missing_idx],
+        if (length(offspring_idx) > 0) {
+            kin_missing_parents <- data.frame(
+            id = ped.tmp[offspring_idx, 1],
             gen = i,
             parent_gen = i-1,
             missing_dam = NA,
-            missing_sire = NA)
-        
-          for (r in 1:nrow(kin_missing_parents)) {
-            id <- kin_missing_parents$id[r]
-            dam <- ped.tmp[,3][ped.tmp[,1] == id]
-            sire <- ped.tmp[,2][ped.tmp[,1] == id]
-            if (dam %in% missing_dams) {
-              kin_missing_parents$missing_dam[r] <- dam
-            }
-            if (sire %in% missing_sires) {
-              kin_missing_parents$missing_sire[r] <- sire
-            }
-          }
-          kin_no_parents[[i]] <- kin_missing_parents
+            missing_sire = NA,
+            stringsAsFactors = FALSE)
+            
+            # fill in which parents are missing for each offspring
+            kin_missing_parents$missing_dam[has_missing_dam[offspring_idx]] <- 
+            ped.tmp[offspring_idx[has_missing_dam[offspring_idx]], 3]
+            kin_missing_parents$missing_sire[has_missing_sire[offspring_idx]] <- 
+            ped.tmp[offspring_idx[has_missing_sire[offspring_idx]], 2]
+            
+            kin_no_parents[[i]] <- kin_missing_parents
         }
 
         cat('Generation', paste0(i, ':'), length(tmp_missing), 'parent IDs were not found in generation', i-1, '\n')
         if (print_ids) {
-          cat('\t', sort(tmp_missing), '\n')
+            cat('\t', sort(tmp_missing), '\n')
         }
-      } # end of if(length(tmp)>0)
+    } # end of if(length(tmp)>0)
 
       ## check for missing values
       parent_nans <- ped.tmp[(is.na(ped.tmp$dam)) | (is.na(ped.tmp$sire)),]
@@ -229,8 +225,21 @@ find.ped.errors <- function(first_gen,  # the desired starting generation
             cat(outfile4, '\n')
 
           }
-      }
 
+          if (length(missing_parents) != 0) {
+            outstr5 <- paste0(file_stem, '_',
+                            rep('0',(last_nchar-first_nchar)),
+                            first_gen, '_', last_gen,
+                            '_ped_error_missing_sex_', datestamp, '.csv')
+            outfile5 <- file.path(errs_dir, outstr5)
+            write.csv(missing_parents, outfile5, row.names=T, quote=F)
+            cat(outfile5, '\n')
+
+          }
+      }
+    
+      print('missing_sex:')
+      print(missing_sex)
       if (return_ids) {
           return(list(unfound_parents = missing_parents,
                       empty_parents = empty_parents,
@@ -304,6 +313,10 @@ format.pedigree <- function(first_gen,  # the desired starting generation
       
   } # end of generation loop
 
+    print('ped.tmp:')
+    print(ped.tmp)
+    print('ped:')
+    print(ped)
   ## change sex coding from alphabetical to numeric, where F:0, M:1
   ped.tmp <- encode.sex(ped.tmp)
   ped <- encode.sex(ped)
@@ -1605,14 +1618,16 @@ concat_peds <- function(
     full_ped <- do.call(rbind, all_peds)
 
     if (grepl('wfu',basename(ped_files[i]))) {
-        id_col <- ifelse(grepl('wfu_raw',basename(ped_files[i])), 'SWID', 'animalid') 
-        gen_col <- ifelse(grepl('wfu_raw',basename(ped_files[i])), 'SWID', 'animalid') 
-        full_ped <- full_ped[order(full_ped[[gen_col]], full_ped[[id_col]]),]
+        if (grepl('raw',basename(ped_files[i]))) {
+            full_ped <- full_ped[order(as.numeric(full_ped$Generation), full_ped$SWID),]
+        } else {
+            full_ped <- full_ped[order(as.numeric(full_ped$generation), full_ped$animalid),]
+        }
         min_gen <- ifelse(min_nchar==1, paste0('0',min_gen), min_gen)
         max_gen <- ifelse(max_nchar==1, paste0('0',max_gen), max_gen)
 
     } else if (grepl('hsw',basename(ped_files[i]))) {
-        full_ped <- full_ped[order(full_ped$generation, full_ped$animalid),]
+        full_ped <- full_ped[order(as.numeric(full_ped$generation), full_ped$animalid),]
         min_gen <- ifelse(min_nchar==2, paste0('0',min_gen), min_gen)
         max_gen <- ifelse(max_nchar==2, paste0('0',max_gen), max_gen)
 
