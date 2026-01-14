@@ -10,32 +10,69 @@
 library(readxl)
 
 
+# # convert WFU SW.ID to access ID
+# swid_to_accessid <- function(id, wfu_map) {
+
+#     accessid <- wfu_map[wfu_map[['swid']] == id,][['accessid']]
+#     return(accessid)
+# }
+
+# # convert access ID to WFU SW.ID
+# accessid_to_swid <- function(accessid, df) {
+#     idx <- which(df[['accessid']] == accessid)
+#     if (length(idx) > 0) {
+#         return(paste(df[['swid']][idx[1]], sep='|'))
+#     } else {
+#         return(NA)
+#     }
+# }
+
+# accessid_to_rfid <- function(accessid, df) {
+#     idx <- which(df[['accessid']] == accessid)
+#     if (length(idx) > 0) {
+#         return(paste(df[['rfid']][idx], collapse='|'))
+#     } else {
+#         return(NA)
+#     }
+# }
+
 # convert WFU SW.ID to access ID
 swid_to_accessid <- function(id, wfu_map) {
 
-    accessid <- wfu_map[wfu_map[['swid']] == id,][['accessid']]
+    if (is.data.frame(wfu_map)) {
+        wfu_map <- wfu_map
+    } else {
+        wfu_map <- read.csv(wfu_map)
+    }
+    accessid <- wfu_map[wfu_map[['swid']] == id,][['accessid']]    
     return(accessid)
 }
 
 # convert access ID to WFU SW.ID
-accessid_to_swid <- function(accessid, df) {
-    idx <- which(df[['accessid']] == accessid)
+accessid_to_swid <- function(accessid, wfu_map) {
+    if (is.data.frame(wfu_map)) {
+        wfu_map <- wfu_map
+    } else {
+        wfu_map <- read.csv(wfu_map)
+    }
+
+    idx <- which(wfu_map[['accessid']] == accessid)
     if (length(idx) > 0) {
-        return(paste(df[['swid']][idx[1]], sep='|'))
+        return(paste(wfu_map[['swid']][idx[1]], sep='|'))
     } else {
         return(NA)
     }
 }
 
-accessid_to_rfid <- function(accessid, df) {
-    idx <- which(df[['accessid']] == accessid)
+accessid_to_rfid <- function(accessid, wfu_map) {
+    
+    idx <- which(wfu_map[['accessid']] == accessid)
     if (length(idx) > 0) {
-        return(paste(df[['rfid']][idx], collapse='|'))
+        return(paste(wfu_map[['rfid']][idx], collapse='|'))
     } else {
         return(NA)
     }
 }
-
 
 # find a WFU animal ID (SW.ID) given a WFU access ID
 get_wfu_swid <- function(id, wfu_df){
@@ -370,39 +407,39 @@ hsw_into_wfu_raw <- function(
 map_merged_ids_wfu <- function(
     merged_ped, # path to a complete merged pedigree
     merged_stem,
-    dir_1,
-    stem_1,
-    first_gen_1,
-    last_gen_1,
-    dir_2,
-    stem_2,
-    first_gen_2,
-    last_gen_2,
+    dir_wfu,
+    stem_wfu,
+    first_gen_wfu,
+    last_gen_wfu,
+    dir_hsw,
+    stem_hsw,
+    first_gen_hsw,
+    last_gen_hsw,
     out_dir=NULL)
 {
 
     merged_ped <- read.csv(merged_ped)
     
-    ped1 <- write.complete.ped(
-        first_gen = first_gen_1,
-        last_gen = last_gen_1,
-        data_dir = dir_1,
-        file_stem = stem_1,
+    ped_wfu <- write.complete.ped(
+        first_gen = first_gen_wfu,
+        last_gen = last_gen_wfu,
+        data_dir = dir_wfu,
+        file_stem = stem_wfu,
         save_file = FALSE)
 
-    ped2 <- write.complete.ped(
-        first_gen = first_gen_2,
-        last_gen = last_gen_2,
-        data_dir = dir_2,
-        file_stem = stem_2,
+    ped_hsw <- write.complete.ped(
+        first_gen = first_gen_hsw,
+        last_gen = last_gen_hsw,
+        data_dir = dir_hsw,
+        file_stem = stem_hsw,
         save_file = FALSE)
 
     use_cols <- c(1,6,7)
-    ped1 <- ped1[,use_cols]
-    ped2 <- ped2[,use_cols]
+    ped_wfu <- ped_wfu[,use_cols]
+    ped_hsw <- ped_hsw[,use_cols]
     wfu_cols <- c('id','rfid','animalid')
-    colnames(ped2) <- wfu_cols
-    ped_all <- rbind(ped1, ped2)
+    colnames(ped_wfu) <- wfu_cols
+    ped_all <- rbind(ped_wfu, ped_hsw)
 
     id_map <- data.frame(
         generation = merged_ped$generation,
@@ -426,6 +463,7 @@ add_hsw_rats_to_wfu_raw_ped <- function(
     ped,    # path to any raw pedigree file (single- or multi-gen, xlsx or csv)
     hsw_shipping_sheet, # path to shipping sheet (xlsx or csv), or dataframe; can use HSW colony df for hypothetical pairings
     add_to_gen, # the WFU generation into which to incorporate HSW rats
+    hsw_only_copy=FALSE, # whether to output a copy including only HSW rats (to share with WFU)
     outdir) # desired output directory path
 {   
     # save the individual generation pedigree to csv
@@ -540,6 +578,11 @@ add_hsw_rats_to_wfu_raw_ped <- function(
     outfile <- file.path(outdir, paste0('wfu_raw_ped_complete_', min_gen, '_', max_gen, '.csv'))
     write.csv(wfu_out, outfile, row.names=F, quote=F, na='')
     cat('Complete raw pedigree saved to', outfile, '\n')
+    if (hsw_only_copy) {
+        hsw_outfile <- file.path(outdir, paste0('hsw_raw_ped_for_wfu_gen_', add_to_gen, '.csv'))
+        write.csv(hsw_ss, hsw_outfile, row.names=F, quote=F, na='')
+        cat('HSW samples saved to', outfile, '\n')
+    }
     return(outfile)
 }
 
