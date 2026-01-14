@@ -134,55 +134,91 @@ wfu_raw_to_hsw <- function(
 # function to produce a raw pedigree file from an HSW assignment sheet
 assignment_to_raw_ped <- function(
     assignments, # assignment file csv or dataframe
-    prev_df, # previous generation's colony df, csv or dataframe
+    hsw_map,     # HSW ID map
     outdir,
-    wfu_shiplist = NULL # breeders shipped from WFU, already formatted from shipping sheets, csv or dataframe
+    wfu_ss = NULL, # breeders shipped from WFU, already formatted from shipping sheets, csv or dataframe
+    wfu_map = NULL
 ) 
 {
-    if (class(assignments)=='character') {
+    if (is.character(assignments) && file.exists(assignments)) {
         assignments <- read.csv(assignments)
     }
-    if (class(prev_df)=='character') {
-        prev_df <- read.csv(prev_df)
+    if (is.character(hsw_map) && file.exists(hsw_map)) {
+        hsw_map <- read.csv(hsw_map)
     }
     ped_cols <- c('generation','rfid','animalid','accessid','sex','coatcolor','earpunch','dam','sire','comments')
     gen <- assignments$generation[1]
 
     ped <- assignments[assignments$assignment=='hsw_breeders',ped_cols]
+    n_hsw <- nrow(ped)
 
     # add RFIDs, access IDs for dams & sires
     names(ped)[which(names(ped)=='dam')] <- 'dam_animalid'
     names(ped)[which(names(ped)=='sire')] <- 'sire_animalid'
     ped$dam_rfid <- sapply(ped$dam_animalid, function(x) {
-        prev_df$rfid[which(prev_df$animalid==x)]})
+        hsw_map$rfid[which(hsw_map$animalid==x)]})
     ped$sire_rfid <- sapply(ped$sire_animalid, function(x) {
-        prev_df$rfid[which(prev_df$animalid==x)]})
+        hsw_map$rfid[which(hsw_map$animalid==x)]})
     ped$dam_accessid <- sapply(ped$dam_animalid, function(x) {
-        prev_df$accessid[which(prev_df$animalid==x)]})
+        hsw_map$accessid[which(hsw_map$animalid==x)]})
     ped$sire_accessid <- sapply(ped$sire_animalid, function(x) {
-        prev_df$accessid[which(prev_df$animalid==x)]})
+        hsw_map$accessid[which(hsw_map$animalid==x)]})
 
     # final column order to include in the raw pedigree
     ped_cols <- c('generation','rfid','animalid','accessid','sex','coatcolor','earpunch',
         'dam_rfid','sire_rfid','dam_animalid','sire_animalid','dam_accessid','sire_accessid','comments')
     ped <- ped[,ped_cols]
 
-    if (!is.null(wfu_shiplist)) {
-        
-        if (class(wfu_shiplist)=='character') {
-        wfu <- read.csv(wfu_shiplist)
-        } else {
-            wfu <- wfu_shiplist
+    # incorporate shipped WFU rats, if provided
+    if (!is.null(wfu_ss)) {
+
+        # read in the WFU ID map
+        if (is.null(wfu_map)) {
+            print('Please provide a WFU ID map to incorporate WFU dam/sire IDs into the pedigree')
+            return
         }
+        if (is.character(wfu_map) && file.exists(wfu_map)) {
+            wfu_map <- read.csv(wfu_map, na.str=c('','NA','NaN','nan'))
+        }
+        
+        # read in shipping sheet
+        if (is.character(wfu_ss) && file.exists(wfu_ss)) {
+            if (file_ext(wfu_ss) == 'xlsx') {
+                # suppress warnings temporarily - excel formatting can produce a lot
+                oldw <- getOption('warn')
+                options(warn = -1)
+                wfu_ss <- as.data.frame(read_excel(wfu_ss, sheet='for HSW'))
+                options(warn = oldw) # allow warnings again
+            } else if (file_ext(wfu_ss) == 'csv') {
+                wfu_ss <- read.csv(wfu_ss, na.str=c('','NA','NaN','nan'))
+            } 
+        }
+        printout('Adding WFU rats to the HSW pedigree')
+        
+        n_wfu <- nrow(wfu_ss)
+        keep_cols <- c('Transponder ID','Animal ID', 'Access ID','Sex','Coat Color','Ear Punch',
+                    'D.O.B','Date Wean','Dam','Sire')
+        wfu <- wfu_ss[,keep_cols]
 
         # rename columns for consistency with HSW formatting
-        names(wfu)[which(names(wfu)=='hsw_gen')] <- 'generation'
-        names(wfu)[which(names(wfu)=='swid')] <- 'animalid'
-        names(wfu)[which(names(wfu)=='dam_swid')] <- 'dam_animalid'
-        names(wfu)[which(names(wfu)=='sire_swid')] <- 'sire_animalid'
+        new_colnames <- c('rfid','animalid','accessid','sex','coatcolor','earpunch','dob','dow','dam_accessid','sire_accessid')
+        colnames(wfu) <- new_colnames
+        
+        # remove underscores from access IDs
+        wfu$accessid <- gsub('_', '', wfu$accessid)
+        wfu$dam_accessid <- gsub('_', '', wfu$dam_accessid)
+        wfu$sire_accessid <- gsub('_', '', wfu$sire_accessid)
+        
+        # add pedigree columns to shipping sheet
+        wfu$generation <- gen
         wfu$comments <- NA
-
-        wfu <- wfu[wfu$generation==gen , ped_cols]
+        wfu$dam_rfid <- sapply(wfu$dam_accessid, function(x) {accessid_to_rfid(x, wfu_map=wfu_map)})
+        wfu$sire_rfid <- sapply(wfu$sire_accessid, function(x) {accessid_to_rfid(x, wfu_map=wfu_map)})
+        wfu$dam_animalid <- sapply(wfu$dam_accessid, function(x) {accessid_to_swid(x, wfu_map=wfu_map)})
+        wfu$sire_animalid <- sapply(wfu$sire_accessid, function(x) {accessid_to_swid(x, wfu_map=wfu_map)})
+        wfu <- wfu[,ped_cols]
+        
+        # add WFU rats to the pedigree
         ped <- rbind(ped, wfu)
     }
     
@@ -191,16 +227,25 @@ assignment_to_raw_ped <- function(
     outfile <-  file.path(outdir, paste0('hsw_raw_gen', gen, '.csv')) 
     write.csv(ped, outfile, row.names=F, quote=F, na='')
     cat('Raw pedigree written to', outfile, '\n')
+    if (is.null(wfu_ss)) {
+        cat('\t', 'Pedigree contains', n_hsw, 'rats \n')
+    } else {
+        cat('\t', 'Pedigree contains', n_hsw, 'HSW rats and', n_wfu, 'WFU rats \n')
+    }
     
     # concatenate all raw pedigree files into an updated single file
     all_peds <- list.files(outdir, full.names=T, pattern='hsw_raw_gen')
     all_peds <- lapply(all_peds, function(x) {read.csv(x)})
     complete_ped <- do.call(rbind, all_peds)
     complete_ped <- complete_ped[order(complete_ped$generation, complete_ped$animalid),]
+    min_gen <- min(complete_ped$generation)
+    max_gen <- max(complete_ped$generation)
+    n_zeros <- nchar(max_gen) - nchar(min_gen)
+    if (n_zeros > 0) {min_gen <- paste0(rep('0',n_zeros),min_gen)}
     datestamp <- format(Sys.time(),'%Y%m%d')
-    complete_ped_file <- file.path(outdir, paste0('hsw_raw_ped_complete_', datestamp, '.csv'))
+    complete_ped_file <- file.path(outdir, paste0('hsw_raw_ped_complete_', min_gen, '_', max_gen, '.csv'))
     write.csv(complete_ped, complete_ped_file, row.names=F, quote=F, na='')
-    cat('Complete HS West pedigree written to', complete_ped_file, '\n')
+    cat('Complete raw HS West pedigree written to', complete_ped_file, '\n')
 
     return(outfile)
 }
@@ -1423,37 +1468,37 @@ final_breeder_file <- function(
 map_merged_ids_hsw <- function(
     merged_ped, # path to a complete merged pedigree
     merged_stem,
-    dir_1,
-    stem_1,
-    first_gen_1,
-    last_gen_1,
-    dir_2,
-    stem_2,
-    first_gen_2,
-    last_gen_2,
+    dir_wfu,
+    stem_wfu,
+    first_gen_wfu,
+    last_gen_wfu,
+    dir_hsw,
+    stem_hsw,
+    first_gen_hsw,
+    last_gen_hsw,
     out_dir=NULL)
 {
 
     merged_ped <- read.csv(merged_ped)
     
-    ped1 <- write.complete.ped(
-        first_gen = first_gen_1,
-        last_gen = last_gen_1,
-        data_dir = dir_1,
-        file_stem = stem_1,
+    ped_wfu <- write.complete.ped(
+        first_gen = first_gen_wfu,
+        last_gen = last_gen_wfu,
+        data_dir = dir_wfu,
+        file_stem = stem_wfu,
         save_file = FALSE)
 
-    ped2 <- write.complete.ped(
-        first_gen = first_gen_2,
-        last_gen = last_gen_2,
-        data_dir = dir_2,
-        file_stem = stem_2,
+    ped_hsw <- write.complete.ped(
+        first_gen = first_gen_hsw,
+        last_gen = last_gen_hsw,
+        data_dir = dir_hsw,
+        file_stem = stem_hsw,
         save_file = FALSE)
 
     use_cols <- c('id','rfid','animalid')
-    ped1 <- ped1[,use_cols]
-    ped2 <- ped2[,use_cols]
-    ped_all <- rbind(ped1, ped2)
+    ped_wfu <- ped_wfu[,use_cols]
+    ped_hsw <- ped_hsw[,use_cols]
+    ped_all <- rbind(ped_wfu, ped_hsw)
 
     id_map <- data.frame(
         generation = merged_ped$generation,
