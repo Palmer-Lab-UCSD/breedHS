@@ -365,10 +365,10 @@ select.breeders <- function(first_gen,              # first generation of the pe
   # first mate pairing
   if (one_per_sibship){
     sibs <- 'one_per_sibship'
-    first.breeders <- find.mates.res(ped.prev,k.prev)
+    first.breeders <- find.mates.res(ped.prev,k.prev, verbose = verbose)
   } else {
     sibs <- 'multi_per_sibship'
-    first.breeders <- find.mates(ped.prev,k.prev)
+    first.breeders <- find.mates(ped.prev,k.prev, verbose = verbose)
   }
   if (verbose) {
     cat('first.breeders: \n')
@@ -394,7 +394,7 @@ select.breeders <- function(first_gen,              # first generation of the pe
   not.avail.pos <- c(1:dim(ped.prev)[1])[not.avail.idx]
   
   # second mate pairing (now using default max_pairs)
-  new.mates <- find.mates.given.pop(ped.comb, k.comb, pos.prev, pos.next, not.avail.pos)
+  new.mates <- find.mates.given.pop(ped.comb, k.comb, pos.prev, pos.next, not.avail.pos, verbose = verbose)
   
   if (verbose) {
     cat('new.mates: \n')
@@ -432,7 +432,7 @@ select.breeders <- function(first_gen,              # first generation of the pe
       
       # next round of mate pairing
       new.mates <- find.mates.given.pop(ped.comb, k.comb, 
-                                      pos.prev, pos.next, not.avail.pos)
+                                      pos.prev, pos.next, not.avail.pos, verbose = verbose)
       
       if (!is.null(new.mates) && nrow(new.mates) > 0) {
         all.mates[[i]] <- new.mates[,1:3]
@@ -574,11 +574,11 @@ exchange.breeders <- function(
     
     # first mate pairing
     if (one_per_sibship){
-        round1.breeders1 <- find.mates.res(ped.prev1,k.prev1)
-        round1.breeders2 <- find.mates.res(ped.prev2,k.prev2)
+        round1.breeders1 <- find.mates.res(ped.prev1,k.prev1, verbose = verbose)
+        round1.breeders2 <- find.mates.res(ped.prev2,k.prev2, verbose = verbose)
     } else {
-        round1.breeders1 <- find.mates(ped.prev1,k.prev1)
-        round1.breeders2 <- find.mates(ped.prev2,k.prev2)
+        round1.breeders1 <- find.mates(ped.prev1,k.prev1, verbose = verbose)
+        round1.breeders2 <- find.mates(ped.prev2,k.prev2, verbose = verbose)
     }
     
     round1.idx1 <- rep(1, nrow(round1.breeders1))
@@ -625,9 +625,9 @@ exchange.breeders <- function(
     
     # second mate pairing 
     round2.breeders1 <- find.mates.given.pop(ped.comb1, k.comb1, 
-                                             pos.prev1, pos.next1, not.avail.pos1)
+                                             pos.prev1, pos.next1, not.avail.pos1, verbose = verbose)
     round2.breeders2 <- find.mates.given.pop(ped.comb2, k.comb2, 
-                                             pos.prev2, pos.next2, not.avail.pos2)
+                                             pos.prev2, pos.next2, not.avail.pos2, verbose = verbose)
     
     if (!is.null(round2.breeders1)){
         
@@ -677,9 +677,9 @@ exchange.breeders <- function(
     
     # third mate pairing
     round3.breeders1 <- find.mates.given.pop(ped.comb1, k.comb1, 
-                                             pos.prev1, pos.next1, not.avail.pos1)
+                                             pos.prev1, pos.next1, not.avail.pos1, verbose = verbose)
     round3.breeders2 <- find.mates.given.pop(ped.comb2, k.comb2, 
-                                             pos.prev2, pos.next2, not.avail.pos2)
+                                             pos.prev2, pos.next2, not.avail.pos2, verbose = verbose)
     
     if (!is.null(round3.breeders1)){
         
@@ -730,10 +730,10 @@ exchange.breeders <- function(
     
     # fourth mate pairing
     round4.breeders1 <- find.mates.given.pop(ped.comb1, k.comb1, 
-                                             pos.prev1, pos.next1, not.avail.pos1)
+                                             pos.prev1, pos.next1, not.avail.pos1, verbose = verbose)
     
     round4.breeders2 <- find.mates.given.pop(ped.comb2, k.comb2, 
-                                             pos.prev2, pos.next2, not.avail.pos2)
+                                             pos.prev2, pos.next2, not.avail.pos2, verbose = verbose)
     
     if (!is.null(round4.breeders1)){
         
@@ -877,22 +877,22 @@ format.pedigree.for.merge <- function(
 # merge the pedigrees of two exchanging populations into a single pedigree
 # with a new set of IDs for all individuals
 merge.pedigrees <- function(
-    ped_map,       # pedigree map: path to csv with per-population gen numbers for all shared generations
-    ex_wfu_hsw,        # exchange history from pop1 to pop2: path to csv w/ cols pop1_from, pop2_to
-    ex_hsw_wfu,        # exchange history from pop2 to pop1: path csv w/ cols pop2_from, pop1_to
-    dir_wfu,         # path to pop1 pedigrees
-    stem_wfu,        # filename stem for pop1 pedigrees
-    first_gen_wfu,   # number of the first generation to include from the pop1 pedigree
-    last_gen_wfu,    # number of the final generation to include from the pop1 pedigree
-    dir_hsw,         # path to pop2 pedigrees
-    stem_hsw,        # filename stem for pop2 pedigrees
-    first_gen_hsw,   # number of the first generation to include from the pop2 pedigree
-    last_gen_hsw,    # number of the final generation to include from the pop2 pedigree
-    merge_into,    # set the merge direction: 1 = from pop2 into pop1, 2 = from pop1 into pop2
-    as_df=TRUE,    # set the output type: T = dataframe, F = list of per-gen dataframes
-    out_dir,       # the path and base file stem for all output pedigree files
-    out_stem,      # the stem name for all merged pedigree files to be saved
-    verbose=FALSE) # set TRUE for troubleshooting
+    ped_map,         # pedigree map: path to csv with per-population gen numbers for all shared generations
+    ex_wfu_hsw,      # exchange history from wfu to hsw: path to csv w/ cols wfu_from, hsw_to
+    ex_hsw_wfu,      # exchange history from hsw to wfu: path csv w/ cols hsw_from, wfu_to
+    dir_wfu,         # path to wfu pedigrees
+    stem_wfu,        # filename stem for wfu pedigrees
+    first_gen_wfu,   # number of the first generation to include from the wfu pedigree
+    last_gen_wfu,    # number of the final generation to include from the wfu pedigree
+    dir_hsw,         # path to hsw pedigrees
+    stem_hsw,        # filename stem for hsw pedigrees
+    first_gen_hsw,   # number of the first generation to include from the hsw pedigree
+    last_gen_hsw,    # number of the final generation to include from the hsw pedigree
+    merge_into,      # set the merge direction: 'wfu' = from hsw into wfu, 'hsw' = from wfu into hsw
+    as_df=TRUE,      # set the output type: T = dataframe, F = list of per-gen dataframes
+    out_dir,         # the path and base file stem for all output pedigree files
+    out_stem,        # the stem name for all merged pedigree files to be saved
+    verbose=FALSE)   # set TRUE for troubleshooting
 {
 
     if (verbose) cat('TROUBLESHOOTING PEDIGREE MERGE \n\n')
@@ -931,7 +931,9 @@ merge.pedigrees <- function(
 
     if (verbose) {
         cat('\t', 'wfu_exchanges:', wfu_exchanges, '\n')
+        cat('\t', 'last_wfu_exchange:', last_wfu_exchange, '\n')
         cat('\t', 'hsw_exchanges:', hsw_exchanges, '\n\n')
+        cat('\t', 'last_hsw_exchange:', last_hsw_exchange, '\n')
     }
 
     # format pedigrees for each population
@@ -997,7 +999,6 @@ merge.pedigrees <- function(
             ped <- receiving_ped[[gen]]
             ped$alt_generation <- NA
             merged_ped[[gen]] <- ped
-            if (verbose) cat('\t', receiving_pop, 'unmerged gen', gen, 'incorporated into pedigree \n')
         } 
     }
     
@@ -1018,7 +1019,6 @@ merge.pedigrees <- function(
         ped <- rbind(received_ped, sent_ped)
         ped <- ped[!duplicated(ped[,1]),]
         merged_ped[[gen]] <- ped
-        if (verbose) cat('\t', receiving_pop, 'merged gen', gen, 'incorporated into the pedigree \n')
     }
     
     # merge generations prior to shipments/receipts and incorporate into the pedigree
@@ -1065,7 +1065,6 @@ merge.pedigrees <- function(
         ped <- rbind(receipt_ped, sending_combined_ped)
         ped <- ped[!duplicated(ped[,1]),]
         merged_ped[[gen]] <- ped
-        if (verbose) cat('\t', receiving_pop, 'merged gen', gen, 'incorporated into the pedigree \n')
 
     } # end of received_prior_gens
     

@@ -1,4 +1,4 @@
-find.mates <- function(ped, k){
+find.mates <- function(ped, k, verbose=FALSE){
 
   ## k is a matrix of kinship coefficients
   ## sex is a matrix of 0/1, where 1 indicates that the
@@ -61,7 +61,7 @@ find.mates <- function(ped, k){
 ## Same as above but only using one individual ##
 ## per sibship                                 ##
 #################################################
-find.mates.res <- function(ped, k){
+find.mates.res <- function(ped, k, verbose=FALSE){
 
   ## k is a matrix of kinship coefficients
   ## sex is a matrix of 0/1, where 1 indicates that the
@@ -112,17 +112,16 @@ find.mates.res <- function(ped, k){
     ## check if any of parents are shared between breeding pair ##
     problem = sum(parents.1 == parents.2)
     
-    ####################################
-    # # uncomment for troubleshooting only
-    # print(paste('id.1:', id.1))
-    # print(paste('id.2:', id.2))
-    # print('ped.tmp:')
-    # print(ped.tmp)
-    # print(paste('parents.1:', parents.1))
-    # print(paste('parents.1:', parents.2))
-    # print('problem:')
-    # print(problem)
-    ####################################
+    if (verbose) {
+    print(paste('id.1:', id.1))
+    print(paste('id.2:', id.2))
+    print('ped.tmp:')
+    print(ped.tmp)
+    print(paste('parents.1:', parents.1))
+    print(paste('parents.1:', parents.2))
+    print('problem:')
+    print(problem)
+    }
     
     if (problem){
       cat("Remaining possible mating pairs share at least one parent.  Exiting. . .\n")
@@ -163,7 +162,7 @@ find.mates.res <- function(ped, k){
 ## coefficient of the offspring                   ##
 ####################################################
 
-find.mates.given.pop <- function(ped , k , parent.pos, children.pos, cant.breed.pos = c(), max.pairs = 50) {
+find.mates.given.pop <- function(ped , k , parent.pos, children.pos, cant.breed.pos = c(), max.pairs = 50, verbose=FALSE) {
 
   ## Given children of generation n-1 (generation n), select 
   ## additional parents from generation n-1 to minimize the
@@ -292,7 +291,7 @@ find.mates.given.pop <- function(ped , k , parent.pos, children.pos, cant.breed.
 ## base pairing on mean kinship coefficients  ##
 ################################################
 
-find.mates.mk <- function(ped){
+find.mates.mk <- function(ped, verbose=FALSE){
 
   k = k.orig
   ibc = diag(k)
