@@ -457,7 +457,7 @@ select.breeders <- function(first_gen,              # first generation of the pe
   all.breeders <- as.data.frame(cbind(round, all.breeders))
   all.breeders <- all.breeders[order(all.breeders$kinship),]
   
-  timestamp <- format(Sys.time(),'%Y%m%d-%H:%M:%S')
+  timestamp <- format(Sys.time(),'%Y%m%d')
   outfile <- file.path(out_dir, paste0('breedpairs_F', last_gen, '_n', length(all.mates), 
                                       '_', sibs, '_', timestamp, '.csv'))
   write.csv(all.breeders, outfile, quote=F, row.names=F)
@@ -1588,7 +1588,7 @@ translate.merged.ids <- function(
     from_str <- paste0(unique(from), collapse='_')
     to_str <- paste0(unique(to), collapse='_')
     datestamp <- format(Sys.time(),'%Y%m%d')
-    outfile <- paste0(basefile, '_translated_', from_str, '_to_', to_str, '_', datestamp, '.csv')
+    outfile <- paste0(basefile, '_', to_str, '.csv')
     write.csv(df, outfile, row.names=F, quote=F, na='')
     cat('Translated file saved to', outfile, '\n')
 
@@ -1740,23 +1740,21 @@ translate.merged.ped <- function(
 
 
 # get the kinship of each potential breeder pair in the current generation
-current.kinship <- function(df, # colony df with ALL HSW rats
-                           first_gen,
-                           last_gen,
-                           data_dir,
-                           file_stem,
-                           wfu_map,
-                           hsw_map,
-                           id_map = NULL)  # if using a merged pedigree
+current.kinship <- function(
+    df, # colony dataframe or current pedigree with all breeders
+    first_gen,
+    last_gen,
+    data_dir,
+    file_stem,
+    wfu_map,
+    hsw_map,
+    id_map = NULL,   # if using a merged pedigree
+    verbose = FALSE)
 {
 
-    df <- read.csv(df)
-    # if (as.numeric(df$generation[1]) != as.numeric(last_gen)) {
-    #     stop(paste0('Colony dataframe generation (', df$generation[1], 
-    #                ') and last_gen (', last_gen, ') must be identical'))
-    # }
+    if (is.character(df) & file.exists(df)) df <- read.csv(df, na.strings = c("", "NA", "?"))
     if (!as.numeric(last_gen) %in% as.numeric(df$generation)) {
-        stop(paste0('Pedigree generation ', last_gen, 'is not represented in the dataframe'))
+        stop(paste0('Pedigree generation ', last_gen, 'is not in the dataframe'))
     }
     # if the df has sex in 1/0 format, convert to M/F
     df$sex[which(df$sex==1)] <- 'M'
@@ -1781,14 +1779,18 @@ current.kinship <- function(df, # colony df with ALL HSW rats
         kinship_ids <- sapply(kinship_ids, animalid_to_accessid)
         k_use <- k_all[kinship_ids, kinship_ids]
     } else {
-        if (class(id_map) == 'character'){
+        if (is.character(id_map) && file.exists(id_map)){
             id_map <- read.csv(id_map)    
-        } else if (class(id_map) == 'data.frame'){
+        } else if (is.data.frame(id_map)){
           id_map <- id_map
         }
         kinship_map <- id_map[id_map$generation==last_gen,]
         kinship_ids <- as.character(kinship_map$merged_id)
         k_use <- k_all[kinship_ids, kinship_ids]
+        if (verbose) {
+            cat('length(kinship_ids):', length(kinship_ids), '(# of IDs in the merged ped current generation) \n')
+            cat('nrow(k_use):', nrow(k_use), '(# of IDs in the current gen kinship matrix) \n')
+        }
         for (i in 1:nrow(k_use)) {
             merged_id <- rownames(k_use)[i] 
             animalid <- id_map[id_map$merged_id==merged_id,]$animalid
@@ -1799,6 +1801,12 @@ current.kinship <- function(df, # colony df with ALL HSW rats
 
     # create a file for all hypothetical pairings
     df <- df[df$animalid %in% rownames(k_use),]
+    if (verbose) cat('nrow(df):', nrow(df), '(# of IDs found in the provided colony_df or pedigree) \n')
+    if (nrow(df) < nrow(k_use)) {
+        cat('WARNING: Not all IDs from the kinship matrix are found in the provided dataframe. \n')
+        cat('\t', 'This will produce an incomplete kinship pairings file and will limit alternative pairings. \n')
+        cat('\t', 'Consider re-running with a complete set of IDs! \n\n')
+    }
     all_males <- df[df$sex=='M',]$animalid
     all_females <- df[df$sex=='F',]$animalid
     n_males <- length(all_males)

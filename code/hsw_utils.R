@@ -685,7 +685,8 @@ best_alt_pairs <- function(
     ids_to_pair=NULL, # vector or path
     save_k=FALSE, # whether to save a kinship matrix for all available rats
     return_pairs=FALSE, # whether to return all identified pairs to the R console
-    outdir=NULL
+    outdir=NULL,
+    verbose = FALSE
 ) {
     if (class(pairs)=='character') {
         pairs <- read.csv(pairs)
@@ -764,6 +765,7 @@ best_alt_pairs <- function(
     # identify best replacements for each ID to be replaced
     if (!is.null(ids_to_replace)) {
         
+
         replacements_list <- list()
         ids_int <- sapply(ids_to_replace, function(x) tail(strsplit(x[1], "_")[[1]], 1))
         ids_sex <- sapply(ids_int, function(x) ifelse(as.integer(x) > 8, 'F', 'M'))
@@ -772,6 +774,7 @@ best_alt_pairs <- function(
         f_to_replace <- ids_to_replace[f_idx]
         m_to_replace <- ids_to_replace[m_idx]
         
+
         # get the ids and families of mates proposed for the IDs that need replacement
         lonely_dams <- pairs[pairs$sire_animalid %in% m_to_replace,]$dam_animalid 
         lonely_sires <- pairs[pairs$dam_animalid %in% f_to_replace,]$sire_animalid 
@@ -784,12 +787,25 @@ best_alt_pairs <- function(
         # designate families to replace as 'available'
         repl_avail_f_fam <- unique(c(avail_f_fam, f_fams_to_replace, lonely_f_fams))
         repl_avail_m_fam <- unique(c(avail_m_fam, m_fams_to_replace, lonely_m_fams))
-
         repl_avail_combos <- expand.grid(repl_avail_f_fam, repl_avail_m_fam)
         colnames(repl_avail_combos) <- c('dam_fam','sire_fam')
         repl_avail_combos$combo <- paste0(repl_avail_combos$dam_fam, '-', repl_avail_combos$sire_fam)
         repl_k_avail <- kinship[kinship$combo %in% repl_avail_combos$combo,]
         repl_k_avail <- repl_k_avail[!repl_k_avail$combo %in% paired_combos,]
+
+        if (verbose) {
+            cat('f_to_replace: \n')
+            cat('\t', f_to_replace, '\n\n')
+            cat('m_to_replace: \n')
+            cat('\t', m_to_replace, '\n\n')
+            cat('lonely_dams: \n')
+            cat('\t', lonely_dams, '\n\n')
+            cat('lonely_sires: \n')
+            cat('\t', lonely_sires, '\n\n')
+            cat('available families:')
+            cat('\t', 'repl_avail_f_fam:', repl_avail_f_fam, '\n')
+            cat('\t', 'repl_avail_m_fam:', repl_avail_m_fam, '\n\n')
+        }
 
         for (id in ids_to_replace) {
 
@@ -804,6 +820,10 @@ best_alt_pairs <- function(
             mate_sex <- setdiff(c('M','F'), id_sex)
             mate_fam <- sub('.*_B(\\d+)_.*', '\\1', mate_id)
 
+            if (verbose) {
+                cat('id_to_replace:', id, '\n')
+                cat('mate_id:', mate_id, '\n')
+            }
             # get the list of IDs that can replace the input ID
             k_id_col <- ifelse(id_sex=='F', 'dam_fam', 'sire_fam')
             k_mate_col <- setdiff(c('sire_fam','dam_fam'), k_id_col)
@@ -1659,8 +1679,9 @@ add_extra_pairs_to_breeder_file <- function(
     colony_df,         # df or csv path
     avail_ids,         # vector or path to animalids available for pairing
     unpaired_ids=NULL, # vector or path to unpaired breeder animalids that still require pairing, e.g. assigned_but_not_paired output by count_breeder_pairs()
-    n_extra,           # number of desired pairings to add
-    outdir
+    n_extra=4,         # number of desired pairings to add
+    outdir,
+    verbose=FALSE      # set TRUE for troubleshooting
 ) {
 
     if (is.data.frame(breedpairs)) {
@@ -1734,6 +1755,8 @@ add_extra_pairs_to_breeder_file <- function(
             id_pair <- k_id[which.min(k_id$kinship),]
             mate_fam <- id_pair[[mate_fam_col]]
 
+            if (verbose) cat('id:', id, '| mate_fam:', mate_fam, '| fams_avail_to_pair:', fams_avail_to_pair, '\n')
+
             # sample one available rat from the identified family
             mate_idx <- sample(which(fams_avail_to_pair == mate_fam), 1)
             mate_id <- ids_avail_to_pair[mate_idx]
@@ -1773,7 +1796,8 @@ add_extra_pairs_to_breeder_file <- function(
                 ids_to_pair = NULL,
                 n_best = n_extra_pairs,
                 return_pairs = TRUE,
-                outdir = NULL)
+                outdir = NULL,
+                verbose = verbose)
     
             extra_pairs$dam <- NA
             extra_pairs$sire <- NA
@@ -1786,7 +1810,7 @@ add_extra_pairs_to_breeder_file <- function(
         } # end of if/else nrow(redone_pairs) >= n_extra
 
     } else {
-        # when there are no unpaired_ids, just run best_alt_pairs 
+        # when there are no unpaired_ids, just run best_alt_pairs
         
         n_extra_pairs <- n_extra
 
@@ -1798,7 +1822,8 @@ add_extra_pairs_to_breeder_file <- function(
             ids_to_pair = NULL,
             n_best = n_extra_pairs,
             return_pairs = TRUE,
-            outdir = NULL)
+            outdir = NULL,
+            verbose = verbose)
     
         extra_pairs$dam <- NA
         extra_pairs$sire <- NA
@@ -1826,6 +1851,11 @@ add_extra_pairs_to_breeder_file <- function(
             # choose one male and one female from the families to be paired
             avail_dams <- avail_f[avail_f_fam == dam_fam]
             avail_sires <- avail_m[avail_m_fam == sire_fam]
+            
+            if (verbose) {
+                cat('avail_dams:', avail_dams, '\n')
+                cat('avail_sires:', avail_sires, '\n')
+            }
 
             # randomly select one from each
             dam <- sample(avail_dams, 1)
