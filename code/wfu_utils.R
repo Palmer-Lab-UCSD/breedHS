@@ -586,3 +586,35 @@ add_hsw_rats_to_wfu_raw_ped <- function(
     return(outfile)
 }
 
+read_wfu_shipping_sheet <- function(
+    wfu_ss)  # file path or dataframe
+{
+    # read in shipping sheet
+    if (is.character(wfu_ss) && file.exists(wfu_ss)) {
+        if (file_ext(wfu_ss) == 'xlsx') {
+            # suppress warnings temporarily - excel formatting can produce a lot
+            oldw <- getOption('warn')
+            options(warn = -1)
+            wfu_ss <- as.data.frame(read_excel(wfu_ss, sheet='for HSW'))
+            options(warn = oldw) # allow warnings again
+        } else if (file_ext(wfu_ss) == 'csv') {
+            wfu_ss <- read.csv(wfu_ss, na.str=c('','NA','NaN','nan'))
+        } 
+    }
+    
+    keep_cols <- c('Transponder ID','Animal ID', 'Access ID','Sex','Coat Color','Ear Punch',
+                'D.O.B','Date Wean','Dam','Sire', 'Pair #','Ship Box','Date Ship')
+    wfu <- wfu_ss[,keep_cols]
+
+    # rename columns for consistency with HSW formatting
+    new_colnames <- c('rfid','animalid','accessid','sex','coatcolor','earpunch','dob','dow','dam_accessid',
+        'sire_accessid','breederpair','ship_box','ship_date')
+    colnames(wfu) <- new_colnames
+
+    # remove underscores from access IDs
+    wfu$accessid <- gsub('_', '', wfu$accessid)
+    wfu$dam_accessid <- gsub('_', '', wfu$dam_accessid)
+    wfu$sire_accessid <- gsub('_', '', wfu$sire_accessid)
+
+    return(wfu)
+}
