@@ -603,12 +603,19 @@ read_wfu_shipping_sheet <- function(
     }
     
     keep_cols <- c('Transponder ID','Animal ID', 'Access ID','Sex','Coat Color','Ear Punch',
-                'D.O.B','Date Wean','Dam','Sire', 'Pair #','Ship Box','Date Ship')
+                'D.O.B','Date Wean','Dam','Sire','Ship Box','Date Ship')
+    missing_cols <- setdiff(keep_cols, colnames(wfu_ss))
+
+    if (length(missing_cols) > 0) {
+        cat('Required columns missing from the WFU shipping sheet: \n')
+        cat('\t', missing_cols, '\n')
+        stop()
+    }
     wfu <- wfu_ss[,keep_cols]
 
     # rename columns for consistency with HSW formatting
     new_colnames <- c('rfid','animalid','accessid','sex','coatcolor','earpunch','dob','dow','dam_accessid',
-        'sire_accessid','breederpair','ship_box','ship_date')
+        'sire_accessid','ship_box','ship_date')
     colnames(wfu) <- new_colnames
 
     # remove underscores from access IDs

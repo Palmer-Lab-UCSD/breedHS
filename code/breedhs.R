@@ -1806,6 +1806,8 @@ current.kinship <- function(
         cat('WARNING: Not all IDs from the kinship matrix are found in the provided dataframe. \n')
         cat('\t', 'This will produce an incomplete kinship pairings file and will limit alternative pairings. \n')
         cat('\t', 'Consider re-running with a complete set of IDs! \n\n')
+        missing_ids <- setdiff(rownames(k_use), df$animalid)
+        cat('Missing IDs:', missing_ids, '\n\n')
     }
     all_males <- df[df$sex=='M',]$animalid
     all_females <- df[df$sex=='F',]$animalid
@@ -1868,12 +1870,12 @@ get_wfu_fam <- function(accessid) {
 
 get_fam <- function(id, wfu_map, hsw_map) {
     
-    if (is.character(wfu_map) & file.exists(wfu_map)) {
+    if (is.character(wfu_map) && file.exists(wfu_map)) {
       wfu_map <- read.csv(wfu_map)
     } else if (class(wfu_map)=='data.frame') {
       wfu_map <- wfu_map
     }
-    if (is.character(hsw_map) & file.exists(hsw_map)) {
+    if (is.character(hsw_map) && file.exists(hsw_map)) {
       hsw_map <- read.csv(hsw_map)
     } else if (class(hsw_map)=='data.frame') {
       hsw_map <- hsw_map
@@ -1885,11 +1887,10 @@ get_fam <- function(id, wfu_map, hsw_map) {
     # ID format: access vs animal ID
     use_accessid <- !is.na(as.integer(id))
 
-
     # ensure the ID is found in either ID map
     if (!id %in% c(hsw_map$accessid, wfu_map$accessid, 
                     hsw_map$animalid, wfu_map$swid)) {
-        stop(cat('ID', id, 'not found in either the HSW or WFU ID maps', '\n'))
+        cat('ID', id, 'not found in either the HSW or WFU ID maps', '\n')
     }
 
     # extract family ID from access IDs

@@ -802,7 +802,7 @@ best_alt_pairs <- function(
             cat('\t', lonely_dams, '\n\n')
             cat('lonely_sires: \n')
             cat('\t', lonely_sires, '\n\n')
-            cat('available families:')
+            cat('available families: \n')
             cat('\t', 'repl_avail_f_fam:', repl_avail_f_fam, '\n')
             cat('\t', 'repl_avail_m_fam:', repl_avail_m_fam, '\n\n')
         }
