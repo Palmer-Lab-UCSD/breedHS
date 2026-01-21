@@ -1,0 +1,231 @@
+#!/bin/bash
+
+# input arguments for breedHS breeder pairing
+# WFU BREEDER EXCHANGE ARGS: use these arguments for breeder exchange generations
+# from the perspective of HS WEST
+
+#####################################################################
+# USER SETTINGS 
+#####################################################################
+
+# EDIT: user email for job notifications
+user=
+
+#####################################################################
+# SLURM + CONDA SETTINGS 
+#####################################################################
+
+# DO NOT EDIT: name of conda environment
+conda_env=
+
+# DO NOT EDIT: slurm allocation ID, partition, & quality of service
+allocation=
+partition=
+qos=
+
+# DO NOT EDIT: CPUs and memory (per cpu) desired for the current job
+cpu=1
+mem=4G 
+
+
+#####################################################################
+# DIRECTORIES
+#####################################################################
+
+# EDIT: the current working directory
+proj_dir=
+
+# DO NOT EDIT: initial sub-directories
+code=${proj_dir}/code
+inputs=${proj_dir}/inputs
+
+# DO NOT EDIT: output & intermediate directories (will be made automatically)
+breedhs_out=${proj_dir}/breedhs_out
+altpairs_dir=${proj_dir}/alt_pairings
+colony_dir=${proj_dir}/colony_edits
+
+# DO NOT EDIT: pedigree directories
+peds_dir=
+hsw_raw_dir=${peds_dir}/raw/hsw
+wfu_raw_dir=${peds_dir}/raw/wfu
+id_map_dir=${peds_dir}/id_maps
+
+
+#####################################################################
+# BREEDHS SETTINGS + INPUTS
+#####################################################################
+
+# DO NOT EDIT: the population undergoing pairing (hsw or wfu)
+pop=hsw
+
+# EDIT: number of desired pairings (usually 70 for HSW, 44 for WFU)
+n_pairs=
+
+# EDIT: WFU generations
+wfu_first_gen=0
+wfu_last_gen=
+
+# EDIT: HSW generations
+hsw_first_gen=54
+hsw_last_gen=
+
+# DO NOT EDIT: WFU file stems
+wfu_raw_stem=wfu_raw_gen
+wfu_stem=wfu_gen
+
+# DO NOT EDIT: HSW file stems
+hsw_raw_stem=hsw_raw_gen
+hsw_stem=hsw_gen
+
+# DO NOT EDIT: the pedigree generations map & exchange history files
+ped_map=${inputs}/hsw_wfu_ped_map.csv
+wfu_to_hsw=${inputs}/wfu_hsw_exchange.csv
+hsw_to_wfu=${inputs}/hsw_wfu_exchange.csv
+
+# EDIT: the complete WFU raw pedigree file
+wfu_raw_ped=${wfu_raw_dir}/
+
+# EDIT: the complete HSW raw pedigree file
+hsw_raw_ped=${hsw_raw_dir}/
+
+# DO NOT EDIT: the WFU ID map file
+wfu_id_map=${id_map_dir}/wfu/wfu_id_map_gen${wfu_last_gen}.csv
+
+# DO NOT EDIT: the HSW ID map file
+hsw_id_map=${id_map_dir}/hsw/hsw_id_map_gen${hsw_last_gen}.csv
+
+# DO NOT EDIT: the directory for colony dataframes
+hsw_colony_dir=
+
+# EDIT: the current HSW colony dataframe
+colony_df=${hsw_colony_dir}/
+
+# EDIT: the previous HSW colony dataframe
+prev_colony_df=${hsw_colony_dir}/
+
+# EDIT: the cureent HSW assignment file
+hsw_assignments=
+
+#####################################################################
+# EXCHANGE INPUTS
+# (files only necessary when setting up an exchange generation)
+# (if adding a new shipping sheet(s), be sure to add to the export list below AND to the arg parser)
+#####################################################################
+
+#### previously-sent shipping sheets ####
+# DO NOT EDIT: shipping sheets directory
+ss_dir=${hsw_colony_dir}/shipping_sheets
+
+## WFU to HSW ##
+# DO NOT EDIT: founders shipping sheet 1
+wfu_ss041_1=${ss_dir}/wfu_to_hsw/
+# DO NOT EDIT: founders shipping sheet 2
+wfu_ss041_2=${ss_dir}/wfu_to_hsw/
+# DO NOT EDIT: gen 47/101 exchange sheet
+wfu_ss047=${ss_dir}/wfu_to_hsw/
+
+# EDIT: the current WFU shipping sheet
+wfu_shipping_sheet=
+
+# EDIT: array of all shipping sheets from WFU
+all_wfu_shipping_sheets=(
+    ${wfu_ss041_1} 
+    ${wfu_ss041_2} 
+    ${wfu_ss047}
+    )
+
+## HSW to WFU ##
+# DO NOT EDIT: gen 107/52 exchange sheet
+hsw_ss107=
+
+# EDIT: the current HSW shipping sheet
+hsw_shipping_sheet=
+
+# EDIT: array of all shipping sheets from HSW
+all_hsw_shipping_sheets=(
+    
+)
+
+# EDIT: file types from which to identify best hypothetical family pairings
+# set to ss if using a current shipping sheet, ped if using a pedigree
+hsw_id_fams_from=ped
+wfu_id_fams_from=ped
+
+#####################################################################
+# AS-NEEDED INPUTS
+# (optional files to use when re-running, replacing/updating pairings, etc)
+#####################################################################
+
+# EDIT: the file of currently available animal IDs
+avail_ids=${inputs}/
+
+# EDIT: the colony-edited pairings file
+colony_pairs=${colony_dir}/
+
+#####################################################################
+# SCRIPTS
+#####################################################################
+
+# DO NOT EDIT: the breedhs.R utilities script
+utils=
+
+# DO NOT EDIT: command line argument parsers
+arg_parser_01=${code}/args/hsw_exchange_breedHS_01_id_maps_arg_parser.R
+arg_parser_02=${code}/args/hsw_exchange_breedHS_02_setup_peds_arg_parser.R
+arg_parser_03=${code}/args/hsw_exchange_breedHS_03_propose_pairs_arg_parser.R
+arg_parser_04=${code}/args/hsw_exchange_breedHS_04_finalize_pairs_arg_parser.R
+
+
+#####################################################################
+#### END OF INPUT ARGUMENTS ####
+#####################################################################
+
+#####################################################################
+#### DO NOT EDIT BELOW ####
+#####################################################################
+
+#### export variables ####
+
+# user/slurm settings
+export user allocation partition qos conda_env cpu mem
+
+# directories
+export proj_dir code inputs  
+export peds_dir id_map_dir
+export altpairs_dir colony_dir breedhs_out
+
+# breedHS code
+export utils 
+
+# argument parsers
+export arg_parser_01 arg_parser_02 arg_parser_03 arg_parser_04
+
+# breedHS inputs/settings
+export ped_map hsw_to_wfu wfu_to_hsw 
+export pop n_pairs 
+export hsw_stem hsw_raw_stem hsw_first_gen hsw_last_gen
+export wfu_stem wfu_raw_stem wfu_first_gen wfu_last_gen
+export hsw_id_fams_from wfu_id_fams_from
+
+# colony dataframes
+export colony_df prev_colony_df
+
+# HSW assignments
+export hsw_assignments
+
+# pedigree files
+export wfu_raw_ped hsw_raw_ped
+
+# shipping sheets
+export all_hsw_shipping_sheets all_wfu_shipping_sheets
+export hsw_shipping_sheet wfu_shipping_sheet
+
+# exchange generations
+export hsw_ship_gen wfu_ship_gen
+export hsw_exchange_gen wfu_exchange_gen
+
+# ID map files
+export wfu_id_map hsw_id_map
+
+# as-needed inputs
+export avail_ids colony_pairs

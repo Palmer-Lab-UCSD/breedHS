@@ -28,57 +28,44 @@ source(utils)
 
 # set up variables, paths, directories
 if (!exists('avail_ids')) avail_ids <- NULL
+if (dir.exists(avail_ids)) avail_ids <- NULL  # set NULL if no file is provided
 if (!exists('replace_ids')) replace_ids <- NULL
+hsw_merged_stem <- 'hsw_merged'
 
 breedhs_outdir <- file.path(proj_dir, 'breedhs_out')
+counts_outdir <- file.path(breedhs_outdir, 'bp_counts')
 altpair_outdir <- file.path(proj_dir, 'alt_pairings')
 kinship_outdir <- file.path(proj_dir, 'kinship')
-colony_dir <- file.path(proj_dir, 'colony')
+colony_dir <- file.path(proj_dir, 'colony_edits')
 
 hsw_dir <- file.path(peds_dir, 'breedail', 'hsw')
 hsw_raw_dir <- file.path(peds_dir, 'raw', 'hsw')
-hsw_current_raw_ped <- file.path(hsw_raw_dir, paste0(hsw_raw_stem, hsw_last_gen, '.csv'))
 wfu_dir <- file.path(peds_dir, 'breedail', 'wfu')
 wfu_raw_dir <- file.path(peds_dir, 'raw', 'wfu')
-
-# set up output directories depending on the direction of merge
-if (pop == 'hsw') {
-    gen <- hsw_last_gen
-    merged_stem <- 'hsw_merged'
-    merged_dir <- file.path(peds_dir, 'merged', 'hsw', paste0('gen', hsw_last_gen))
-    current_raw_ped <- file.path(hsw_raw_dir, paste0(hsw_raw_stem, hsw_last_gen, '.csv'))
-    out_dir <- hsw_dir
-} else if (pop == 'wfu') {
-    gen <- wfu_last_gen
-    merged_stem <- 'wfu_merged'
-    merged_dir <- file.path(peds_dir, 'merged', 'wfu', paste0('gen', wfu_last_gen))
-    current_raw_ped <- file.path(wfu_raw_dir, paste0(wfu_raw_stem, wfu_last_gen, '.csv'))
-    out_dir <- wfu_dir
-}
-current_dir <- file.path(out_dir, paste0('gen', gen))
-dir.create(merged_dir, showWarnings=F)
-dir.create(current_dir, showWarnings=F)
+hsw_merged_dir <- file.path(peds_dir, 'merged', 'hsw', paste0('gen', hsw_last_gen))
+dir.create(hsw_merged_dir, recursive=T, showWarnings=F)
+current_ped <- file.path(hsw_dir, paste0(hsw_stem, hsw_last_gen, '.csv'))
 
 
 # merge the WFU pedigree into the HSW pedigree
 printout('Merging pedigrees')
 
 merged_ped <- merge.pedigrees(
-    merge_into = ifelse(pop == 'hsw', 2, 1),
+    merge_into = 'hsw',
     ped_map = ped_map, 
-    ex_1_2 = wfu_to_hsw,
-    ex_2_1 = hsw_to_wfu,
-    dir_1 = wfu_dir,
-    stem_1 = wfu_stem,
-    first_gen_1 = wfu_first_gen,
-    last_gen_1 = wfu_last_gen,
-    dir_2 = hsw_dir,
-    stem_2 = hsw_stem,
-    first_gen_2 = hsw_first_gen,
-    last_gen_2 = hsw_last_gen,
+    ex_wfu_hsw = wfu_to_hsw,
+    ex_hsw_wfu = hsw_to_wfu,
+    dir_wfu = wfu_dir,
+    stem_wfu = wfu_stem,
+    first_gen_wfu = wfu_first_gen,
+    last_gen_wfu = wfu_last_gen,
+    dir_hsw = hsw_dir,
+    stem_hsw = hsw_stem,
+    first_gen_hsw = hsw_first_gen,
+    last_gen_hsw = hsw_last_gen,
     as_df = T,
     out_dir = merged_dir,
-    out_stem = merged_stem)
+    out_stem = hsw_merged_stem)
 
 printout('Checking the merged pedigree for errors')
 find.ped.errors(
@@ -105,20 +92,36 @@ translated_ped <- translate.merged.ids(
     from = rep('merged_id', 3), 
     to = rep('accessid', 3)) 
 
-# estimate kinship, copy files to the final output directory
-printout('Estimating kinship')
+# estimate (or read in) kinship, copy files to the final output directory
+skip_kinship <- Sys.getenv('skip_k') == 'true'
 
-k <- current.kinship(
-    df = hsw_current_raw_ped, 
-    first_gen = hsw_first_gen,
-    last_gen = hsw_last_gen,
-    data_dir = merged_dir,
-    file_stem = merged_stem,
-    id_map = merged_ped$id.map)
+if (!skip_kinship) {
 
-kfiles <- list.files(merged_dir, pattern='kinship', full.names=T)
-sapply(kfiles, function(file) file.copy(from = file, to = kinship_outdir))
-kfile <- read.csv(kfiles[which(grepl('all_pairings',kfiles))])
+    printout('Estimating kinship')
+    k <- current.kinship(
+        df = current_ped, 
+        first_gen = hsw_first_gen,
+        last_gen = hsw_last_gen,
+        data_dir = hsw_merged_dir,
+        file_stem = hsw_merged_stem,
+        hsw_map = hsw_id_map,
+        wfu_map = wfu_id_map,
+        id_map = merged_ped$id.map,
+        verbose = TRUE) # set TRUE for troubleshooting
+
+    kfiles <- list.files(hsw_merged_dir, pattern='kinship', full.names=T)
+    kfile <- read.csv(kfiles[which(grepl('all_pairings',kfiles))])
+    
+    copy_results <- sapply(kfiles, function(file) {
+        result <- file.copy(from = file, to = kinship_outdir, overwrite = TRUE)
+        cat('Copying', basename(file), 'into', kinship_outdir, '\n')
+    })
+
+} else {
+
+    printout(paste('Reading kinship from file:', kinship_file))
+    kfile <- read.csv(kinship_file)
+}
 
 # plot pairwise kinship for the entire generation
 plot_k_hist(
@@ -159,16 +162,10 @@ breedpairs_animalid <- translate.merged.ids(
 # create the final breederpair file
 printout('Producing final breederpair file')
 
-# WFU sample sheet parameter to automate pairings file creation 
-wfu_ss_input <- NULL
-if (exists('wfu_ss') && !is.null(wfu_ss) && !is.na(wfu_ss)) {
-  wfu_ss_input <- wfu_ss
-}
-
 breedpairs <- create_hsw_breeder_file(
     pairs = breedpairs_animalid, 
     df = colony_df, 
-    wfu_ss = wfu_ss_input,    
+    wfu_ss = NULL,    
     outdir = breedhs_outdir)$pairs
 
 # identify unpaired breeders

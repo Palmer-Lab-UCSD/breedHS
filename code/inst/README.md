@@ -7,7 +7,7 @@ Use these instances as templates for running breedHS. They are organized by inst
 - `wfu_exchange`: Use this code for pairing exchange generations at Wake Forest (when WFU receives breeders from HSW)
 
 ## HS West
-Code in `hsw` is stable and should be usable as-is after filling out the arguments file.
+Code in `hsw` uploaded 1/21/26 using gen107_108 code. May need some updates from hsw_exchange gen108_109.
 
 ## Wake Forest
  No code present in `wfu` yet. Some functions have been written and I began testing hypothetical WFU pairings during HSW gen104, but status is incomplete. This code base should be finished ASAP
