@@ -15,6 +15,9 @@ echo "$(date +"%Y%m%d-%H:%M:%S")"
 echo "user: ${user}"
 echo ""
 
+if [[ -f "$proposed_pairs" ]]; then
+    echo "Using proposed pairs file: ${proposed_pairs}"
+fi
 
 if [[ "$skip_k" == "false" ]]; then
 
@@ -40,9 +43,9 @@ if [[ "$skip_k" == "false" ]]; then
         --wfu_last_gen ${wfu_last_gen} \
         --colony_df ${colony_df} \
         --hsw_assignments ${hsw_assignments} \
-        --wfu_shipping_sheet ${wfu_shipping_sheet} \
         --avail_ids ${avail_ids} \
         --utils ${utils} \
+        --proposed_pairs_file ${proposed_pairs} \
         --proj_dir ${proj_dir} \
         breedhs
 
@@ -74,10 +77,10 @@ elif [[ "$skip_k" == "true" ]]; then
         --wfu_last_gen ${wfu_last_gen} \
         --colony_df ${colony_df} \
         --hsw_assignments ${hsw_assignments} \
-        --wfu_shipping_sheet ${wfu_shipping_sheet} \
         --avail_ids ${avail_ids} \
         --utils ${utils} \
         --proj_dir ${proj_dir} \
+        --proposed_pairs_file ${proposed_pairs} \
         --kinship_file ${kinship_file} \
         breedhs
 

@@ -4,8 +4,6 @@ library(argparse)
 breedhs_parser <- argument_parser(
     argument_def('breedhs', type = 'character', default_val = 'breedhs',
         help = 'arbitrary positional argument included to enable argument parsing'),
-    argument_def('--pop', type = 'character', required = TRUE,
-        help = 'the population being analyzed: the population to merge pedigree info into'),
     argument_def('--peds_dir', type = 'character', required = TRUE, 
         help = 'path to the upper directory for pedigrees'),
     argument_def('--hsw_raw_ped', type = 'character', required = TRUE,
@@ -20,8 +18,6 @@ breedhs_parser <- argument_parser(
         help = 'the most recent HSW generation to include in the pedigree'),
     argument_def('--wfu_raw_ped', type = 'character', required = TRUE,
         help = 'the file path to the complete raw WFU pedigree'),
-    argument_def('--hsw_shipping_sheet', type = 'character', required = TRUE,
-        help = 'the file path to the HSW shipping sheet (if this is a current exchange generation)'),
     argument_def('--wfu_stem', type = 'character', required = TRUE,
         help = 'the file stem name for formatted WFU pedigrees'),
     argument_def('--wfu_raw_stem', type = 'character', required = TRUE,

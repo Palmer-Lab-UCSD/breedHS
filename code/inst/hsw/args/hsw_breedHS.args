@@ -106,50 +106,14 @@ prev_colony_df=${hsw_colony_dir}/
 # EDIT: the cureent HSW assignment file
 hsw_assignments=
 
-#####################################################################
-# EXCHANGE INPUTS
-# (files only necessary when setting up an exchange generation)
-# (if adding a new shipping sheet(s), be sure to add to the export list below AND to the arg parser)
-#####################################################################
+# DO NOT EDIT: shipping sheets 
+# (ensure all previous shipping sheets and the current shipping sheet are present and properly formatted/named)
+ss_dir=${hsw_colony_dir}/shipping_sheets/breeder_exchanges
+wfu_ss_dir=${ss_dir}/wfu_to_hsw
+hsw_ss_dir=${ss_dir}/hsw_to_wfu
+all_wfu_shipping_sheets=($(find ${wfu_ss_dir} -name "wfu_gen*_for_hsw_gen*.xlsx"))
+all_hsw_shipping_sheets=($(find ${hsw_ss_dir} -name "hsw_gen*_for_wfu_gen*.xlsx"))
 
-#### previously-sent shipping sheets ####
-# DO NOT EDIT: shipping sheets directory
-ss_dir=${hsw_colony_dir}/shipping_sheets
-
-## WFU to HSW ##
-# DO NOT EDIT: founders shipping sheet 1
-wfu_ss041_1=${ss_dir}/wfu_to_hsw/
-# DO NOT EDIT: founders shipping sheet 2
-wfu_ss041_2=${ss_dir}/wfu_to_hsw/
-# DO NOT EDIT: gen 47/101 exchange sheet
-wfu_ss047=${ss_dir}/wfu_to_hsw/
-
-# EDIT: the current WFU shipping sheet
-wfu_shipping_sheet=
-
-# EDIT: array of all shipping sheets from WFU
-all_wfu_shipping_sheets=(
-    ${wfu_ss041_1} 
-    ${wfu_ss041_2} 
-    ${wfu_ss047}
-    )
-
-## HSW to WFU ##
-# DO NOT EDIT: gen 107/52 exchange sheet
-hsw_ss107=
-
-# EDIT: the current HSW shipping sheet
-hsw_shipping_sheet=
-
-# EDIT: array of all shipping sheets from HSW
-all_hsw_shipping_sheets=(
-    
-)
-
-# EDIT: file types from which to identify best hypothetical family pairings
-# set to ss if using a current shipping sheet, ped if using a pedigree
-hsw_id_fams_from=ped
-wfu_id_fams_from=ped
 
 #####################################################################
 # AS-NEEDED INPUTS
@@ -170,10 +134,11 @@ colony_pairs=${colony_dir}/
 utils=
 
 # DO NOT EDIT: command line argument parsers
-arg_parser_01=${code}/args/hsw_exchange_breedHS_01_id_maps_arg_parser.R
-arg_parser_02=${code}/args/hsw_exchange_breedHS_02_setup_peds_arg_parser.R
-arg_parser_03=${code}/args/hsw_exchange_breedHS_03_propose_pairs_arg_parser.R
-arg_parser_04=${code}/args/hsw_exchange_breedHS_04_finalize_pairs_arg_parser.R
+arg_parser=${code}/breedHS_arg_parser.R
+arg_parser_01=${code}/args/hsw_breedHS_01_id_maps_arg_parser.R
+arg_parser_02=${code}/args/hsw_breedHS_02_setup_peds_arg_parser.R
+arg_parser_03=${code}/args/hsw_breedHS_03_propose_pairs_arg_parser.R
+arg_parser_04=${code}/args/hsw_breedHS_04_finalize_pairs_arg_parser.R
 
 
 #####################################################################
@@ -218,11 +183,6 @@ export wfu_raw_ped hsw_raw_ped
 
 # shipping sheets
 export all_hsw_shipping_sheets all_wfu_shipping_sheets
-export hsw_shipping_sheet wfu_shipping_sheet
-
-# exchange generations
-export hsw_ship_gen wfu_ship_gen
-export hsw_exchange_gen wfu_exchange_gen
 
 # ID map files
 export wfu_id_map hsw_id_map

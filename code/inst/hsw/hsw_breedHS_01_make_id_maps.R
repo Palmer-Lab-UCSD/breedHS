@@ -6,6 +6,8 @@ all_args <- commandArgs(trailingOnly = T)
 # find the arg_parser_argument
 argparse_idx <- which(all_args == '--arg_parser') + 1
 arg_parser <- all_args[argparse_idx]
+print('arg_parser:')
+print(arg_parser)
 
 # read in the argument parser
 source(arg_parser)
@@ -19,8 +21,6 @@ code_dir <- dirname(utils)
 utils <- basename(utils)
 setwd(code_dir)
 source(utils)
-
-print(args)
 
 # create output directories
 dir.create(file.path(outdir, 'hsw'), recursive=T, showWarnings=F)
@@ -75,23 +75,6 @@ if (exists('hsw_assignments')) {
         prev_df$accessid[which(prev_df$animalid==x)]})
     hsw_assigned$sire_accessid <- sapply(hsw_assigned$sire_animalid, function(x) {
         prev_df$accessid[which(prev_df$animalid==x)]})
-
-    # hsw_assigned$dam_rfid <- as.character(sapply(hsw_assigned$dam_animalid, function(x) {
-    #     matches <- prev_df$rfid[which(prev_df$animalid==x)]
-    #     if (length(matches) == 0) return(NA)
-    #         return(matches[1])}))
-    # hsw_assigned$sire_rfid <- as.character(sapply(hsw_assigned$sire_animalid, function(x) {
-    #     matches <- prev_df$rfid[which(prev_df$animalid==x)]
-    #     if (length(matches) == 0) return(NA)
-    #         return(matches[1])}))
-    # hsw_assigned$dam_accessid <- as.character(sapply(hsw_assigned$dam_animalid, function(x) {
-    #     matches <- prev_df$accessid[which(prev_df$animalid==x)]
-    #     if (length(matches) == 0) return(NA)
-    #         return(matches[1])}))
-    # hsw_assigned$sire_accessid <- as.character(sapply(hsw_assigned$sire_animalid, function(x) {
-    #     matches <- prev_df$accessid[which(prev_df$animalid==x)]
-    #     if (length(matches) == 0) return(NA)
-    #         return(matches[1])}))
 
     # add new breeders the the HSW id map
     hsw_assigned <- hsw_assigned[,hsw_col_order]

@@ -32,10 +32,6 @@ breedhs_parser <- argument_parser(
         help = 'the file path to the HSW ID map'),
     argument_def('--wfu_id_map', type = 'character', required = TRUE,
         help = 'the file path to the WFU ID map'),
-    argument_def('--wfu_shipping_sheet', type = 'character', required = FALSE,
-        help = 'the file path to the WFU shipping sheet (if this is a current exchange generation)'),
-    argument_def('--hsw_shipping_sheet', type = 'character', required = FALSE,
-        help = 'the file path to the HSW shipping sheet (if this is a current exchange generation)'),
     argument_def('--wfu_stem', type = 'character', required = FALSE,
         help = 'the file stem name for formatted WFU pedigrees'),
     argument_def('--wfu_raw_stem', type = 'character', required = FALSE,
@@ -67,6 +63,8 @@ breedhs_parser <- argument_parser(
     argument_def('--arg_parser', type = 'character', required = TRUE,
         help = 'path to the argument parser R script'),
     argument_def('--kinship_file', type = 'character', required = FALSE,
-        help = 'path to a kinship matrix in csv format')
+        help = 'path to a kinship matrix in csv format'),
+    argument_def('--proposed_pairs_file', type = 'character', required = FALSE,
+        help = 'path to a proposed pairings file in csv format')
 
 )

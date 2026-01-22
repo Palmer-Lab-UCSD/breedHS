@@ -6,7 +6,7 @@ breedhs_parser <- argument_parser(
         help = 'arbitrary positional argument included to enable argument parsing'),
     argument_def('--wfu_raw_ped', type = 'character', required = TRUE,
         help = 'the file path to the complete raw WFU pedigree'),
-    argument_def('--all_wfu_ss', type = 'character', required = TRUE, nargs=3,
+    argument_def('--all_wfu_ss', type = 'character', required = TRUE, nargs=4,
         help = 'bash array of file paths to WFU shipping sheets'),
     argument_def('--hsw_raw_ped', type = 'character', required = TRUE,
         help = 'the file path to the complete raw HSW pedigree'),
