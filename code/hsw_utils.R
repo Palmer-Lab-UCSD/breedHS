@@ -711,6 +711,7 @@ best_alt_pairs <- function(
         }
     }
     datestamp <- format(Sys.time(),'%Y%m%d')
+    if (verbose) cat('TROUBLESHOOTING best_alt_pairs() \n\n')
 
     # get the breederpair combination for each possible pairing
     kinship$dam_fam <- sapply(kinship$dam_fam, function(x) {
@@ -745,16 +746,36 @@ best_alt_pairs <- function(
     avail_f_fam <- unique(sapply(avail_f, function(x) sub('.*_B(\\d+)_.*', '\\1', x)))
     avail_m_fam <- unique(sapply(avail_m, function(x) sub('.*_B(\\d+)_.*', '\\1', x)))
 
-    avail_combos <- expand.grid(avail_f_fam, avail_m_fam)
-    colnames(avail_combos) <- c('dam_fam','sire_fam')                        
-    avail_combos$combo <- paste0(avail_combos[,1], '-', avail_combos[,2])
-    avail_combos <- avail_combos[!avail_combos$combo %in% paired_combos,]
+    avail_new_combos <- expand.grid(avail_f_fam, avail_m_fam)
+    colnames(avail_new_combos) <- c('dam_fam','sire_fam')                        
+    avail_new_combos$combo <- paste0(avail_new_combos[,1], '-', avail_new_combos[,2])
+    avail_new_combos <- avail_new_combos[!avail_new_combos$combo %in% paired_combos,]
 
+    if (verbose) {
+        cat('avail_f:', avail_f, '\n')
+        cat('avail_m:', avail_m, '\n\n')
+        cat('avail_f_fam:', avail_f_fam, '\n')
+        cat('avail_m_fam:', avail_m_fam, '\n\n')
+        cat('avail_combos: \n')
+        print(str(avail_new_combos))
+    }
     # kinship of all possible combos still available to pair
-    k_avail <- kinship[kinship$combo %in% avail_combos$combo,]
+    k_avail <- kinship[kinship$combo %in% avail_new_combos$combo,]
     k_avail <- k_avail[k_avail$dam_fam != k_avail$sire_fam,]
     k_avail <- k_avail[order(k_avail$dam_fam, k_avail$kinship),]
     k_avail <- k_avail[,3:(ncol(k_avail)-1)] # drop specific animal IDs
+
+    # all potential pairings of available females with paired sires
+    avail_replacement_dams <- expand.grid(paired_sire_fam, avail_f_fam)
+    colnames(avail_replacement_dams) <- c('paired_sire_fam', 'avail_dam_fam')
+    avail_replacement_dams$combo <- paste0(avail_replacement_dams[,1], '-', avail_replacement_dams[,2])
+    k_avail_repl_dams <- kinship[kinship$combo %in% avail_replacement_dams$combo,]
+
+    # all potential pairings of available males with paired dams
+    avail_replacement_sires <- expand.grid(paired_dam_fam, avail_m_fam)
+    colnames(avail_replacement_sires) <- c('paired_dam_fam', 'avail_sire_fam')
+    avail_replacement_sires$combo <- paste0(avail_replacement_sires[,1], '-', avail_replacement_sires[,2])
+    k_avail_repl_sires <- kinship[kinship$combo %in% avail_replacement_sires$combo,]
 
     if (save_k) {
         outfile <- file.path(outdir, paste0('kinship_all_avail_fams_',datestamp,'.csv'))
@@ -764,7 +785,6 @@ best_alt_pairs <- function(
 
     # identify best replacements for each ID to be replaced
     if (!is.null(ids_to_replace)) {
-        
 
         replacements_list <- list()
         ids_int <- sapply(ids_to_replace, function(x) tail(strsplit(x[1], "_")[[1]], 1))
@@ -895,19 +915,21 @@ best_alt_pairs <- function(
         f_fams_to_pair <- fams_to_pair[f_idx]
         m_fams_to_pair <- fams_to_pair[m_idx]
 
-        avail_f_fams <- sapply(avail_f, function(x) sub('.*_B(\\d+)_.*', '\\1', x))
-        avail_m_fams <- sapply(avail_m, function(x) sub('.*_B(\\d+)_.*', '\\1', x))
-
-        alt_avail_f_fams <- unique(c(avail_f_fams, f_fams_to_pair))
-        alt_avail_m_fams <- unique(c(avail_m_fams, m_fams_to_pair))
+        alt_avail_f_fams <- unique(c(avail_f_fam, f_fams_to_pair))
+        alt_avail_m_fams <- unique(c(avail_m_fam, m_fams_to_pair))
 
         alt_avail_combos <- (expand.grid(alt_avail_f_fams, alt_avail_m_fams))
         colnames(alt_avail_combos) <- c('dam_fam','sire_fam')
         alt_avail_combos$combo <- paste0(alt_avail_combos[,1], '-', alt_avail_combos[,2])
 
-        # kinship of all possible combos still available to pair
-        alt_k_avail <- kinship[kinship$combo %in% alt_avail_combos$combo,]
-        alt_k_avail <- alt_k_avail[!alt_k_avail$combo %in% paired_combos,]
+        if (verbose) {
+            cat('alt_avail_f_fams:', alt_avail_f_fams, '\n')
+            cat('alt_avail_m_fams:', alt_avail_m_fams, '\n')
+        }
+
+        # # kinship of all possible combos still available to pair
+        # alt_k_avail <- kinship[kinship$combo %in% alt_avail_combos$combo,]
+        # alt_k_avail <- alt_k_avail[!alt_k_avail$combo %in% paired_combos,]
 
         for (id in ids_to_pair) {
 
@@ -919,12 +941,24 @@ best_alt_pairs <- function(
             mate_id <- pairs[pairs[id_col]==id,mate_col]
             mate_fam <- sub('.*_B(\\d+)_.*', '\\1', mate_id)
 
-            # get the list of IDs that can be paired with the input ID
-            k_id_col <- ifelse(id_sex=='F', 'dam_fam', 'sire_fam')
-            k_mate_col <- setdiff(c('dam_fam','sire_fam'), k_id_col)
-            k_alt_pairs <- alt_k_avail[alt_k_avail[[k_id_col]]==id_fam,]
+            # for all females to pair, identify alternative sires
+            if (id_sex == 'F') {
+                k_alt_pairs <- k_avail_repl_sires[k_avail_repl_sires[['dam_fam']] == id_fam,]
+                k_id_col <- 'dam_fam'
+                k_mate_col <- 'sire_fam'
+            } else if (id_sex == 'M') {
+                k_alt_pairs <- k_avail_repl_dams[k_avail_repl_dams[['sire_fam']] == id_fam,]
+                k_id_col <- 'sire_fam'
+                k_mate_col <- 'dam_fam'
+            }
             k_alt_pairs <- k_alt_pairs[order(k_alt_pairs$kinship),]
             n_rows <- nrow(k_alt_pairs)
+            # # get the list of IDs that can be paired with the input ID
+            # k_id_col <- ifelse(id_sex=='F', 'dam_fam', 'sire_fam')
+            # k_mate_col <- setdiff(c('dam_fam','sire_fam'), k_id_col)
+            # k_alt_pairs <- alt_k_avail[alt_k_avail[[k_id_col]]==id_fam,]
+            # k_alt_pairs <- k_alt_pairs[order(k_alt_pairs$kinship),]
+            # n_rows <- nrow(k_alt_pairs)
 
             if (n_rows > n_best) {
                 k_alt_pairs <- k_alt_pairs[1:n_best,]
