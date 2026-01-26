@@ -13,7 +13,7 @@ Code in `hsw` uploaded 1/21/26. This code should work as-is (after filling out t
  No code present in `wfu` yet. Some functions have been written and I began testing hypothetical WFU pairings during HSW gen104, but status is incomplete. This code base should be finished ASAP
 
 ## HSW Exchange
-Code in `hsw_exchange` should be stable and usable as-is after filling out the arguments file. Uploaded 1/21/26 following HSW gen108_109 pairings.
+Code in `hsw_exchange` should be stable and usable as-is after filling out the arguments file. Uploaded 1/26/26 following HSW gen108_109 pairings.
 
 This code base pairs HSW rats during exchanges, from the perspective of HS West. Use this code only when HS West receives breeders from Wake Forest. Note that script `03_propose_pairs` lacks steps for identifying alternative/replacement pairs, due to complications imposed by WFU IDs. 
 
