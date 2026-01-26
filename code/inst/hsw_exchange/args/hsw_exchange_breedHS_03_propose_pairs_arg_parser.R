@@ -67,6 +67,8 @@ breedhs_parser <- argument_parser(
     argument_def('--arg_parser', type = 'character', required = TRUE,
         help = 'path to the argument parser R script'),
     argument_def('--kinship_file', type = 'character', required = FALSE,
-        help = 'path to a kinship matrix in csv format')
+        help = 'path to a kinship matrix in csv format'),
+    argument_def('--proposed_pairs_file', type = 'character', required = FALSE,
+        help = 'path to a proposed pairings file in csv format')
 
 )

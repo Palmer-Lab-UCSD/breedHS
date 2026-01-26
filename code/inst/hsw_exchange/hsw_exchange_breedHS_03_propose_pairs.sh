@@ -45,6 +45,7 @@ if [[ "$skip_k" == "false" ]]; then
         --avail_ids ${avail_ids} \
         --utils ${utils} \
         --proj_dir ${proj_dir} \
+        --proposed_pairs_file ${proposed_pairs} \
         breedhs
 
 elif [[ "$skip_k" == "true" ]]; then
@@ -80,6 +81,7 @@ elif [[ "$skip_k" == "true" ]]; then
         --utils ${utils} \
         --proj_dir ${proj_dir} \
         --kinship_file ${kinship_file} \
+        --proposed_pairs_file ${proposed_pairs} \
         breedhs
 
 fi
