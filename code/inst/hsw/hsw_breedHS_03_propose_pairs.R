@@ -81,19 +81,11 @@ find.ped.errors(
     print_ids = FALSE)
 
 printout('Translating the merged pedigree')
-translated_ped <- translate.merged.ids(
-    input = merged_ped,    
-    id_map = merged_ped$id.map, 
-    cols = c('id','sire','dam'),   
-    from = rep('merged_id', 3), 
-    to = rep('animalid', 3)) 
-
-translated_ped <- translate.merged.ids(
-    input = merged_ped,    
-    id_map = merged_ped$id.map, 
-    cols = c('id','sire','dam'),   
-    from = rep('merged_id', 3), 
-    to = rep('accessid', 3)) 
+translated_ped <- translate.merged.ped(
+    ped = merged_ped,
+    id_map = merged_ped$id.map,
+    wfu_map = wfu_id_map,
+    hsw_map = hsw_id_map)
 
 # estimate (or read in) kinship, copy files to the final output directory
 skip_kinship <- Sys.getenv('skip_k') == 'true'
@@ -192,8 +184,6 @@ unpaired_ids <- bp_counts$assigned.but.not.paired
 n_paired <- nrow(breedpairs)
 all_paired_ids <- c(breedpairs$dam_animalid, breedpairs$sire_animalid)
 
-print('avail_ids1:')
-print(avail_ids)
 if (nrow(breedpairs) < n_pairs) {
 
     printout('Proposing additional pairings')
@@ -220,8 +210,6 @@ if (nrow(breedpairs) < n_pairs) {
 
     all_paired_ids <- c(breedpairs$dam_animalid, breedpairs$sire_animalid)
     avail_ids <- setdiff(avail_ids, c(all_paired_ids))
-    print('avail_ids2:')
-    print(avail_ids)
 }
 
 # get best aternative pairings

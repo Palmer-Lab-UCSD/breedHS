@@ -111,7 +111,7 @@ echo "Running breedHS step 2: pedigree setup"
 	logs_dir=${proj_dir}/logs/02_setup_peds
     mkdir -p ${logs_dir}
     timestamp=$(date +"%Y%m%d-%H:%M:%S")
-    log_file=${logs_dir}/03_setup_peds_${timestamp}.o
+    log_file=${logs_dir}/02_setup_peds_${timestamp}.o
 
     Rscript ${code}/hsw_breedHS_02_setup_peds.R \
         --utils ${utils} \
@@ -126,7 +126,6 @@ echo "Running breedHS step 2: pedigree setup"
         --hsw_last_gen ${hsw_last_gen} \
         --hsw_stem ${hsw_stem} \
         --hsw_raw_stem ${hsw_raw_stem} \
-        --wfu_shipping_sheet ${wfu_shipping_sheet} \
         --hsw_assignments ${hsw_assignments} \
         --prev_colony_df ${prev_colony_df} \
         --wfu_id_map ${wfu_id_map} \
@@ -147,7 +146,6 @@ echo "Running breedHS step 3: proposing breeder pairs"
         echo "Using kinship file: ${kinship_file}"
         echo ""
     fi
-    echo "proposed_pairs: ${proposed_pairs}"
 
     if [[ -f "$proposed_pairs" ]]; then
     echo "Using proposed pairs file: ${proposed_pairs}"

@@ -15,9 +15,6 @@ echo "$(date +"%Y%m%d-%H:%M:%S")"
 echo "user: ${user}"
 echo ""
 
-if [[ -f "$proposed_pairs" ]]; then
-    echo "Using proposed pairs file: ${proposed_pairs}"
-fi
 
 if [[ "$skip_k" == "false" ]]; then
 

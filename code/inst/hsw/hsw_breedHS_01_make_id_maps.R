@@ -6,8 +6,6 @@ all_args <- commandArgs(trailingOnly = T)
 # find the arg_parser_argument
 argparse_idx <- which(all_args == '--arg_parser') + 1
 arg_parser <- all_args[argparse_idx]
-print('arg_parser:')
-print(arg_parser)
 
 # read in the argument parser
 source(arg_parser)
