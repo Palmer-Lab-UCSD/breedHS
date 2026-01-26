@@ -76,23 +76,6 @@ if (exists('hsw_assignments')) {
     hsw_assigned$sire_accessid <- sapply(hsw_assigned$sire_animalid, function(x) {
         prev_df$accessid[which(prev_df$animalid==x)]})
 
-    # hsw_assigned$dam_rfid <- as.character(sapply(hsw_assigned$dam_animalid, function(x) {
-    #     matches <- prev_df$rfid[which(prev_df$animalid==x)]
-    #     if (length(matches) == 0) return(NA)
-    #         return(matches[1])}))
-    # hsw_assigned$sire_rfid <- as.character(sapply(hsw_assigned$sire_animalid, function(x) {
-    #     matches <- prev_df$rfid[which(prev_df$animalid==x)]
-    #     if (length(matches) == 0) return(NA)
-    #         return(matches[1])}))
-    # hsw_assigned$dam_accessid <- as.character(sapply(hsw_assigned$dam_animalid, function(x) {
-    #     matches <- prev_df$accessid[which(prev_df$animalid==x)]
-    #     if (length(matches) == 0) return(NA)
-    #         return(matches[1])}))
-    # hsw_assigned$sire_accessid <- as.character(sapply(hsw_assigned$sire_animalid, function(x) {
-    #     matches <- prev_df$accessid[which(prev_df$animalid==x)]
-    #     if (length(matches) == 0) return(NA)
-    #         return(matches[1])}))
-
     # add new breeders the the HSW id map
     hsw_assigned <- hsw_assigned[,hsw_col_order]
     hsw_map <- rbind(hsw_map, hsw_assigned)

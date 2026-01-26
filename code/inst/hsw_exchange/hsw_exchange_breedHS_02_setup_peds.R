@@ -32,45 +32,18 @@ dir.create(altpair_outdir, showWarnings=F)
 dir.create(kinship_outdir, showWarnings=F)
 dir.create(colony_dir, showWarnings=F)
 
-# create pedigree directories
-breedail_dir <- file.path(peds_dir, 'breedail')
-hsw_dir <- file.path(breedail_dir, 'hsw')
+# intermediate directories
+hsw_dir <- file.path(peds_dir, 'breedail', 'hsw')
 hsw_raw_dir <- file.path(peds_dir, 'raw', 'hsw')
-wfu_dir <- file.path(breedail_dir, 'wfu')
+wfu_dir <- file.path(peds_dir, 'breedail', 'wfu')
 wfu_raw_dir <- file.path(peds_dir, 'raw', 'wfu')
-dir.create(breedail_dir, recursive=F, showWarnings=F)
-dir.create(hsw_dir, recursive=F, showWarnings=F)
-dir.create(wfu_dir, recursive=F, showWarnings=F)
 
-# set up output directories depending on the direction of merge
-if (pop == 'hsw') {
-    gen <- hsw_last_gen
-    merged_stem <- 'hsw_merged'
-    merged_dir <- file.path(peds_dir, 'merged', 'hsw', paste0('gen', hsw_last_gen))
-    current_raw_ped <- file.path(hsw_raw_dir, paste0(hsw_raw_stem, hsw_last_gen, '.csv'))
-    out_dir <- hsw_dir
-} else if (pop == 'wfu') {
-    gen <- wfu_last_gen
-    merged_stem <- 'wfu_merged'
-    merged_dir <- file.path(peds_dir, 'merged', 'wfu', paste0('gen', wfu_last_gen))
-    current_raw_ped <- file.path(wfu_raw_dir, paste0(wfu_raw_stem, wfu_last_gen, '.csv'))
-    out_dir <- wfu_dir
-}
-current_dir <- file.path(out_dir, paste0('gen', gen))
-dir.create(merged_dir, recursive=T, showWarnings=F)
+merged_stem <- 'hsw_merged'
+merged_dir <- file.path(peds_dir, 'merged', 'hsw', paste0('gen', hsw_last_gen))
+current_raw_ped <- file.path(hsw_raw_dir, paste0(hsw_raw_stem, hsw_last_gen, '.csv'))
+current_dir <- file.path(hsw_dir, paste0('gen', hsw_last_gen))
+dir.create(merged_dir, showWarnings=F)
 dir.create(current_dir, showWarnings=F)
-
-# # incorporate HSW rats into the WFU raw pedigree - not executed gen107
-# printout('Adding HSW rats to the raw WFU pedigree')
-# add_hsw_rats_to_wfu_raw_ped(
-#     ped = wfu_raw_ped,
-#     hsw_shipping_sheet = hsw_shipping_sheet,
-#     add_to_gen = wfu_last_gen,
-#     outdir = wfu_raw_dir)
-
-# # new raw pedigree file
-# datestamp <- format(Sys.time(),'%Y%m%d')
-# wfu_raw_ped <- file.path(wfu_raw_dir, paste0('wfu_raw_ped_complete_', datestamp, '.csv'))
 
 
 # convert the WFU raw pedigree into breedail format as part of the HSW pedigree
@@ -91,24 +64,13 @@ concat_peds(
 )
 
 # convert the most recent HSW assignments into a raw pedigree
-printout('Converting HSW assignments to pedigree')
+printout('Converting HSW assignments to pedigree and incorporating shipped WFU samples')
 hsw_current_raw_ped <- assignment_to_raw_ped(
     assignments = hsw_assignments,
     hsw_map = hsw_id_map, 
     wfu_ss = wfu_shipping_sheet,
     wfu_map = wfu_id_map,
     outdir = hsw_raw_dir)
-
-# # incorporate WFU rats into the HSW raw pedigree
-# printout('Adding WFU rats to the raw HSW pedigree')
-# wfu_into_hsw_gen(
-#     hsw_raw = hsw_assignments,
-#     wfu_ss = wfu_shipping_sheet,
-#     wfu_sheet = 'for ',
-#     ss_gen = wfu_last_gen,
-#     wfu_prev = wfu_raw_ped,
-#     outdir = hsw_raw_dir,
-#     return_df = FALSE)
 
 # convert the HSW raw pedigree into breedail format
 printout('Converting the raw HSW pedigree')

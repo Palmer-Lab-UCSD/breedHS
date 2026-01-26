@@ -1,10 +1,25 @@
 #!/bin/bash
 
-
 # initialize variables
 breedhs_args=""
 step=""
 skip_k="false"
+proposed_pairs="NULL"
+
+usage() {
+    echo "Usage: $0 --step <step_name> [--skip_k]"
+    echo ""
+    echo "Arguments:"
+    echo " --args <filepath>      Required. File path to the breedHS arguments file"
+    echo "  --step <step_name>    Required. Analysis step to run: 'make_id_maps', 'fams_to_ship', 'setup_peds', 'propose_pairs', or 'finalize_pairs'"
+    echo "  --skip_k              Optional. Skip kinship calculations in propose_pairs step, read kinship from file instead"
+    echo ""
+    echo "Examples:"
+    echo "  $0 --step setup_peds --args <filepath>"
+    echo "  $0 --step propose_pairs --skip_k --args <filepath>"
+    exit 1
+}
+
 
 # parse command line arguments
 while [[ $# -gt 0 ]]; do
@@ -21,6 +36,10 @@ while [[ $# -gt 0 ]]; do
             skip_k="true"
             shift 1
             ;;
+        --use_pairs)
+            proposed_pairs="$2"
+            shift 2 
+            ;;
         -h|--help)
             usage
             ;;
@@ -30,20 +49,6 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
-
-usage() {
-    echo "Usage: $0 --step <step_name> [--skip_k]"
-    echo ""
-    echo "Arguments:"
-    echo " --args <filepath>      Required. File path to the breedHS arguments file"
-    echo "  --step <step_name>    Required. Analysis step to run: 'make_id_maps', 'fams_to_ship', 'setup_peds', 'propose_pairs', or 'finalize_pairs'"
-    echo "  --skip_k              Optional. Skip kinship calculations in propose_pairs step, read kinship from file instead"
-    echo ""
-    echo "Examples:"
-    echo "  $0 --step setup_peds --args <filepath>"
-    echo "  $0 --step propose_pairs --skip_k --args <filepath>"
-    exit 1
-}
 
 # validate required arguments
 if [[ -z "$breedhs_args" ]]; then
@@ -143,7 +148,14 @@ echo "Running breedHS step 3: proposing breeder pairs"
         echo "Using kinship file: ${kinship_file}"
         echo ""
     fi
-    
+
+    if [[ -f "$proposed_pairs" ]]; then
+    echo "Using proposed pairs file: ${proposed_pairs}"
+    fi
+
+    echo "breedhs_args: ${breedhs_args}"
+    echo "proj_dir: ${proj_dir}"
+
 	job_name=hsw_gen${hsw_last_gen}_propose_pairs
 	logs_dir=${proj_dir}/logs/03_propose_pairs
 	mkdir -p ${logs_dir}
@@ -151,7 +163,7 @@ echo "Running breedHS step 3: proposing breeder pairs"
 	sbatch -J ${job_name} -o ${logs_dir}/${job_name}-%j.o -e ${logs_dir}/${job_name}-%j.o \
 		-p ${partition} -q ${qos} --account ${allocation} \
         -N 1 -c ${cpu} --mem-per-cpu ${mem} --time 1:00:00  \
-		--export breedhs_args="${breedhs_args}",skip_k="${skip_k}" \
+		--export breedhs_args="${breedhs_args}",skip_k="${skip_k}",proposed_pairs="${proposed_pairs}" \
         --exclude "tscc-14-10" \
 		${code}/hsw_exchange_breedHS_03_propose_pairs.sh
 
@@ -164,8 +176,8 @@ echo "Running breedHS step 4: finalizing breeder pairs + final files"
     
     logs_dir=${proj_dir}/logs/04_final_pairs
 	mkdir -p ${logs_dir}
-    datestamp=$(date +"%Y%m%d")
-    log=${logs_dir}/hsw_gen${hsw_last_gen}_final_pairs.o
+    timestamp=$(date +"%Y%m%d-%H:%M:%S")
+    log_file=${logs_dir}/hsw_gen${hsw_last_gen}_final_pairs_${timestamp}.o
 
     proposed_pairs=$( ls ${breedhs_out}/*breeders_proposed* )
     colony_pairs=$( ls ${colony_dir}/*breeders_proposed* )
@@ -183,7 +195,7 @@ echo "Running breedHS step 4: finalizing breeder pairs + final files"
         --utils ${utils} \
         --proj_dir ${proj_dir} \
         --arg_parser ${arg_parser_04} \
-        breedhs > ${log}
+        breedhs 2>&1 | tee ${log_file}
 
 fi
 
