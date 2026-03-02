@@ -1980,3 +1980,199 @@ concat_peds <- function(
         return(full_ped)
     }
 }
+
+# function to track offspring through the pedigree
+trace_offspring_single <- function(
+    id,  # animalid or rfid
+    ped,  # raw ped, csv or dataframe
+    breederpairs = NULL, # current pairings file, csv or dataframe
+    colony_df = NULL) # colony df including the id's generation, csv or dataframe
+{
+
+    if (is.data.frame(ped)) {
+        ped$rfid <- as.character(ped$rfid)
+        ped$dam_rfid <- as.character(ped$dam_rfid)
+        ped$sire_rfid <- as.character(ped$sire_rfid)
+        
+    } else if (is.character(ped) & file.exists(ped)) {
+        ped <- read.csv(ped, colClasses=list('rfid'='character','dam_rfid'='character','sire_rfid'='character'))
+    }
+    ped_cols <- colnames(ped)
+
+    if(!is.null(breederpairs)) {
+        if (is.data.frame(breederpairs)) {
+            breederpairs$dam_rfid <- as.character(breederpairs$dam_rfid)
+            breederpairs$sire_rfid <- as.character(breederpairs$sire_rfid)
+        } else if (is.character(breederpairs) & file.exists(breederpairs)) {
+            breederpairs <- read.csv(breederpairs, colClasses=list('dam_rfid'='character','sire_rfid'='character'))
+        }  
+        bp_gen <- breederpairs$generation[1]
+        if (bp_gen != max(ped$generation)) {
+            return('Breederpairs file is not contiguous with the pedigree!')
+        }
+    }
+
+    if(!is.null(colony_df)) {
+        if (is.data.frame(colony_df)) {
+            colony_df$rfid <- as.character(colony_df$rfid)
+        } else if (is.character(colony_df) & file.exists(colony_df)) {
+            colony_df <- read.csv(colony_df, colClasses=list('rfid'='character'))
+        }
+
+    }
+    # ensure the ID is in the pedigree
+    id <- as.character(id)
+    id_type <- ifelse(grepl('^G',id), 'animalid','rfid')
+
+    if (!id %in% ped[[id_type]]) {
+        message1 <- cat('ID', id, 'is not found in the pedigree! \n')
+        
+        if (is.null(colony_df)) {
+            message <- cat(message1, ' Input the colony dataframe to trace a sibling instead \n')
+        
+        } else {
+            # find an alternate (sibling) ID to trace
+            if (id_type == 'animalid') {
+                id_row <- colony_df[colony_df$animalid == id,]
+                rfid <- id_row$rfid
+            } else {
+                id <- as.character(id)
+                id_row <- colony_df[colony_df$rfid == id,]
+                rfid <- id
+                id <- id_row$animalid
+            } 
+            id_sex <- id_row$sex
+            id_gen <- id_row$gen
+            id_fam <- id_row$breederpair
+
+            sibs_df <- colony_df[(colony_df$generation == id_gen) & 
+                                 (colony_df$breederpair == id_fam) &
+                                 (colony_df$sex == id_sex) &
+                                 (colony_df$animalid != id),]
+            sib_ids <- sibs_df$animalid
+            
+            if (length(sib_ids) == 0) {
+                message2 <- cat(' No siblings in the colony dataframe. Cannot trace pedigree for ID', id, '\n')
+                message <- cat(message1, message2)
+            
+            } else {
+                # if the input ID has siblings, check that they are in the pedigree
+                breeder_sibs <- ped[ped$animalid %in% sib_ids,]$animalid
+                if (length(breeder_sibs) == 0) {
+                    # return an error if no sibs are in the pedigree
+                    message2 <- cat('No siblings in the pedigree. Cannot trace pedigree for ID', id, '\n')
+                    message <- can(message1, message2)
+                } else {
+                    # sample a breeder sibling if present in the pedigree
+                    id <- sample(breeder_sibs, 1)
+                    id_type <- ifelse(grepl('^G',id), 'animalid','rfid')
+                    message2 <- cat('Tracing pedigree for sibling ID', id, 'instead \n')
+                    message <- cat(message1, message2)                    
+                }
+            }
+        }
+        return(message)
+    }
+
+    # get metadata for the ID
+    if (id_type == 'animalid') {
+        id_row <- ped[ped$animalid == id,]
+        rfid <- id_row$rfid
+    } else {
+        id <- as.character(id)
+        id_row <- ped[ped$rfid == id,]
+        rfid <- id
+        id <- id_row$animalid
+    } 
+    id_sex <- id_row$sex
+    id_gen <- id_row$generation
+
+    
+    all_gens <- sort(unique(ped$generation))
+    gen_peds <- list()
+    f_gen <- 0
+
+    # get IDs of offspring from each successive generation
+    for (gen in id_gen:max(all_gens)) {
+        prev_gen = gen - 1
+        gen_ped <- ped[ped$generation==gen,]
+        if (gen==id_gen) {
+            gen_ped <- gen_ped[gen_ped$animalid==id,]
+        } else {
+            f_gen <- f_gen + 1
+            prev_ped <- gen_peds[[as.character(prev_gen)]]
+            prev_dams <- prev_ped[prev_ped$sex=='F',]$animalid
+            prev_sires <- prev_ped[prev_ped$sex=='M',]$animalid
+            gen_ped <- gen_ped[(gen_ped$dam_animalid %in% prev_dams) | (gen_ped$sire_animalid %in% prev_sires),]
+        }
+        gen_ped$f_gen <- f_gen
+        col_order <- c(ped_cols[1], 'f_gen', ped_cols[2:length(ped_cols)])
+        gen_ped <- gen_ped[,col_order]
+        gen_peds[[as.character(gen)]] <- gen_ped
+    } 
+
+    if (!is.null(breederpairs)) {
+        last_gen <- gen + 1
+        f_gen <- f_gen + 1
+        current_dams <- gen_ped[gen_ped$sex=='F',]$animalid
+        current_sires <- gen_ped[gen_ped$sex=='M',]$animalid
+        keep_bp <- breederpairs[(breederpairs$dam_animalid %in% current_dams) | 
+                                (breederpairs$sire_animalid %in% current_sires),]
+        last_ped <- data.frame(
+            generation = last_gen,
+            f_gen = f_gen,
+            rfid = 'any',
+            animalid = 'any',
+            accessid = 'any',
+            sex = NA,
+            coatcolor = NA,
+            earpunch = NA,
+            dam_rfid = keep_bp$dam_rfid,
+            sire_rfid = keep_bp$sire_rfid,
+            dam_animalid = keep_bp$dam_animalid,
+            sire_animalid = keep_bp$sire_animalid,
+            dam_accessid = keep_bp$dam_accessid,
+            sire_accessid = keep_bp$sire_accessid,
+            comments = keep_bp$breederpair
+        )
+
+        gen_peds[[as.character(last_gen)]] <- last_ped
+    }
+
+    gen_peds <- do.call(rbind, gen_peds)
+    row.names(gen_peds) <- NULL
+    return(gen_peds)
+}
+
+trace_offspring <- function(
+    ids, # vector of animalids and/or rfids
+    ped, # raw ped, csv or dataframe
+    breederpairs = NULL, # current pairings file, csv or dataframe\
+    colony_df = NULL) # colony df including the id's generation, csv or dataframe
+{
+    results <- list()
+    for (id in ids) {
+        id <- as.character(id)
+        id_results <- trace_ped_single(
+            id = id,
+            ped = ped,
+            breederpairs = breederpairs,
+            colony_df = colony_df)
+        
+        # only add to results if it's a data frame
+        if (is.data.frame(id_results)) {
+            results[[as.character(id)]] <- id_results
+        } else {
+            cat('Error tracing pedigree for ID', id, '- not included in final results \n')
+        }
+    }
+    
+    if (length(results) == 0) {
+        return(NULL)
+    }
+    
+    results <- do.call(rbind, results)
+    results <- results[order(results$generation, results$animalid),]
+    row.names(results) <- NULL
+    return(results)
+}
