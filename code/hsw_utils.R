@@ -234,7 +234,8 @@ format_hsw_raw_ped <- function(
     wfu_map = NULL,     # the WFU ID map (csv) with WFU access IDs and animal IDs (SW IDs)
     hsw_map = NULL,     # the HSW ID map (csv) 
     outdir = NULL,      # directory in which to save the formatted pedigree file
-    return_df = FALSE) # whether to return the final df to the R console
+    return_df = FALSE, # whether to return the final df to the R console
+    verbose = FALSE)
 {
     if (file.exists(ped)) {
         ped <- read.csv(ped, na.str=c('','NA','NaN','nan'))
@@ -257,6 +258,14 @@ format_hsw_raw_ped <- function(
     ped <- ped[,hsw_keep_cols]
     # ped$wfu_generation <- NA
 
+    if (verbose) {
+        print('ped:')
+        print(str(ped))
+        print('hsw_map:')
+        print(str(hsw_map))
+        print('wfu_map:')
+        print(str(wfu_map))
+    }
     # convert dam animal IDs based on HSW vs WFU format
     ped$dam <- unlist(sapply(ped$dam_animalid, function(x) {
         if (is.na(x)) return(NA)

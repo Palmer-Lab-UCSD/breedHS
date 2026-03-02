@@ -169,7 +169,8 @@ split_wfu_raw_ped <- function(
 format_wfu_raw_ped <- function(
     ped,    # path to any raw pedigree file (single- or multi-gen, xlsx or csv)
     wfu_map, # path to WFU ID map
-    outdir) # desired output directory path
+    outdir, # desired output directory path
+    verbose = FALSE)
 {
     cat('Using WFU raw ped:', ped, '\n')
     if (file.exists(wfu_map)) {
@@ -217,6 +218,11 @@ format_wfu_raw_ped <- function(
     
     # split the pedigree by generation
     ped_gens <- split(wfu, wfu$generation)
+
+    if (verbose) {
+        print('ped_gens:')
+        print(str(ped_gens))
+    }
         
     # save generations to separate files
     if (dir.exists(outdir) == FALSE) {
