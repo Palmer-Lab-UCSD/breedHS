@@ -137,7 +137,8 @@ assignment_to_raw_ped <- function(
     hsw_map,     # HSW ID map
     outdir,
     wfu_ss = NULL, # breeders shipped from WFU, already formatted from shipping sheets, csv or dataframe
-    wfu_map = NULL
+    wfu_map = NULL,
+    verbose = FALSE
 ) 
 {
     if (is.character(assignments) && file.exists(assignments)) {
@@ -155,6 +156,16 @@ assignment_to_raw_ped <- function(
     # add RFIDs, access IDs for dams & sires
     names(ped)[which(names(ped)=='dam')] <- 'dam_animalid'
     names(ped)[which(names(ped)=='sire')] <- 'sire_animalid'
+
+    if (verbose) {
+        missing_dams <- setdiff(ped$dam_animalid, hsw_map$animalid)
+        missing_sires <- setdiff(ped$sire_animalid, hsw_map$animalid)
+        cat(length(missing_dams), 'dam animalids missing from hsw_map \n')
+        if (length(missing_dams)>0) cat('\t',missing_dams, '\n')
+        cat(length(missing_sires), 'dam animalids missing from hsw_map \n')
+        if (length(missing_sires)>0) cat('\t',missing_sires, '\n')
+    }
+    
     ped$dam_rfid <- sapply(ped$dam_animalid, function(x) {
         hsw_map$rfid[which(hsw_map$animalid==x)]})
     ped$sire_rfid <- sapply(ped$sire_animalid, function(x) {
@@ -196,6 +207,10 @@ assignment_to_raw_ped <- function(
         wfu$sire_animalid <- sapply(wfu$sire_accessid, function(x) {accessid_to_swid(x, wfu_map=wfu_map)})
         wfu <- wfu[,ped_cols]
         
+        if (verbose) {
+            cat('wfu:')
+            print(str(wfu))
+        }
         # add WFU rats to the pedigree
         ped <- rbind(ped, wfu)
     }
@@ -1630,10 +1645,12 @@ make_hsw_shipping_sheet <- function(
 }
 
 # convert a finalized pairings file into a raw HSW pedigree
+# NOTE: this overwrites the raw pedigree produced by assignment_to_raw_ped()
 final_hsw_breeders_to_raw_ped <- function(
     pairs,   # path or dataframe - final breeders file to convert to pedigree
+    ped, # path or dataframe - the current generation's raw pedigree
     colony_df, # path or dataframe - the current colony dataframe
-    prev_df, # path or dataframe - the previous
+    prev_df, # path or dataframe - the previous generation's colony dataframe
     stem,
     outdir # where to save the pedigree file 
 ) {
@@ -1646,22 +1663,45 @@ final_hsw_breeders_to_raw_ped <- function(
     if (class(prev_df)=='character') {
         prev_df <- read.csv(prev_df)
     }
+    if (is.character(ped) && file.exists(ped)) {
+        ped <- read.csv(ped, colClasses=list('rfid'='character','dam_rfid'='character','sire_rfid'='character'))
+    }
+
+    ped_cols <- c('generation','rfid','animalid','accessid','sex','coatcolor','earpunch',
+    'dam_rfid','sire_rfid','dam_animalid','sire_animalid','dam_accessid','sire_accessid','comments')
 
     paired_rfids <- c(pairs$dam_rfid, pairs$sire_rfid)
-    df_cols <- c('generation','rfid','animalid','accessid','sex','coatcolor','earpunch','dam','sire','comments')
-    ped <- colony_df[colony_df$rfid %in% paired_rfids, df_cols]
-    names(ped)[which(names(ped)=='dam')] <- 'dam_animalid'
-    names(ped)[which(names(ped)=='sire')] <- 'sire_animalid'
+    paired_ids <- c(pairs$dam_animalid, pairs$sire_animalid)
 
-    # add alternate IDs to pedigree
-    ped$dam_rfid <- sapply(ped$dam_animalid, function(x) {
-        prev_df$rfid[which(prev_df$animalid==x)]})
-    ped$sire_rfid <- sapply(ped$sire_animalid, function(x) {
-        prev_df$rfid[which(prev_df$animalid==x)]})
-    ped$dam_accessid <- sapply(ped$dam_animalid, function(x) {
-        prev_df$accessid[which(prev_df$animalid==x)]})
-    ped$sire_accessid <- sapply(ped$sire_animalid, function(x) {
-        prev_df$accessid[which(prev_df$animalid==x)]})
+    if (all(paired_ids %in% ped$animalid)) {
+        # if all paired IDs are in the original pedigree (no changes to pairing have been made in the colony)
+        # then simply subset the original pedigree to only those IDs that were paired
+        ped <- ped[ped$animalid %in% paired_ids, ped_cols]
+    
+    } else {
+        # if replacements were taken from the colony, get metadata from the colony dataframe
+        ped <- ped[ped$animalid %in% paired_ids, ped_cols]
+        df_cols <- c('generation','rfid','animalid','accessid','sex','coatcolor','earpunch','dam','sire','comments')
+        df_ids <- setdiff(paired_ids, ped$animalid)
+        print(df_ids)
+        df_ped <- colony_df[colony_df$animalid %in% df_ids, df_cols]
+        names(df_ped)[which(names(df_ped)=='dam')] <- 'dam_animalid'
+        names(df_ped)[which(names(df_ped)=='sire')] <- 'sire_animalid'
+
+        # add alternate IDs to pedigree
+        df_ped$dam_rfid <- sapply(df_ped$dam_animalid, function(x) {
+            prev_df$rfid[which(prev_df$animalid==x)]})
+        df_ped$sire_rfid <- sapply(df_ped$sire_animalid, function(x) {
+            prev_df$rfid[which(prev_df$animalid==x)]})
+        df_ped$dam_accessid <- sapply(df_ped$dam_animalid, function(x) {
+            prev_df$accessid[which(prev_df$animalid==x)]})
+       df_ped$sire_accessid <- sapply(df_ped$sire_animalid, function(x) {
+            prev_df$accessid[which(prev_df$animalid==x)]})
+
+        # concatenate updated IDs to the pedigree
+        df_ped <- df_ped[, ped_cols]
+        ped <- rbind(ped, df_ped)
+    }
 
     # convert any list columns to character vectors
     list_cols <- sapply(ped, is.list)
@@ -1671,10 +1711,8 @@ final_hsw_breeders_to_raw_ped <- function(
         })
     }
 
-    ped_cols <- c('generation','rfid','animalid','accessid','sex','coatcolor','earpunch',
-    'dam_rfid','sire_rfid','dam_animalid','sire_animalid','dam_accessid','sire_accessid','comments')
-
-    ped <- ped[order(ped$animalid) , ped_cols]
+    # order the pediree by animal ID
+    ped <- ped[order(ped$animalid),]
     gen <- ped$generation[1]
 
     outfile <- file.path(outdir, paste0(stem, gen, '.csv'))
