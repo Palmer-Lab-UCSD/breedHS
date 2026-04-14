@@ -42,7 +42,6 @@ if [[ "$skip_k" == "false" ]]; then
         --hsw_assignments ${hsw_assignments} \
         --avail_ids ${avail_ids} \
         --utils ${utils} \
-        --proposed_pairs_file ${proposed_pairs} \
         --proj_dir ${proj_dir} \
         breedhs
 
