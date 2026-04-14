@@ -70,7 +70,8 @@ hsw_current_raw_ped <- assignment_to_raw_ped(
     hsw_map = hsw_id_map, 
     wfu_ss = wfu_shipping_sheet,
     wfu_map = wfu_id_map,
-    outdir = hsw_raw_dir)
+    outdir = hsw_raw_dir,
+    verbose = FALSE)
 
 # convert the HSW raw pedigree into breedail format
 printout('Converting the raw HSW pedigree')

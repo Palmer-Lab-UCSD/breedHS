@@ -32,7 +32,7 @@ colony_dir <- file.path(proj_dir, 'colony_edits')
 hsw_raw_dir <- file.path(peds_dir, 'raw', 'hsw')
 pairs_proposed <- read.csv(pairs_proposed)
 kfile <- list.files(kinship_outdir, pattern='kinship_all_pairings', full.names=T)
-
+current_raw_ped <- file.path(hsw_raw_dir, paste0('hsw_raw_gen',generation,'.csv'))
 
 # read in any alternative pairings files filled out in the colony
 colony_files <- list.files(colony_dir, full.names=T)
@@ -114,6 +114,7 @@ printout(paste0('Producing the finalized raw pedigree for gen', generation))
 
 hsw_raw_ped <- final_hsw_breeders_to_raw_ped(
     pairs = breedpairs,
+    ped = current_raw_ped,
     colony_df = colony_df,
     prev_df = prev_colony_df,
     stem = hsw_raw_stem,
