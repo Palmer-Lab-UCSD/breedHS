@@ -24,7 +24,6 @@ source(utils)
 dir.create(file.path(outdir, 'hsw'), recursive=T, showWarnings=F)
 dir.create(file.path(outdir, 'wfu'), recursive=T, showWarnings=F)
 
-#### initialize ID maps for pedigree samples ####
 
 # read in the raw WFU pedigree
 printout('Reading the raw WFU pedigree')
@@ -48,37 +47,6 @@ hsw_col_order <- c('generation', 'rfid', 'animalid', 'accessid', 'sex',
                    'dam_rfid', 'sire_rfid', 'dam_animalid', 'sire_animalid', 'dam_accessid', 'sire_accessid')
 hsw_map <- hsw_map[, hsw_col_order]
 
-# read in current HSW assignments, if being used
-if (exists('hsw_assignments')) {
-    printout('Reading HSW assignments')
-    hsw_assignments <- read.csv(hsw_assignments)
-    
-    if (!exists('prev_colony_df')) {
-        stop('Please provide the previous HSW colony dataframe.')
-    }
-    printout('Reading the previous HSW colony dataframe')
-    prev_df <- read.csv(prev_colony_df)
-
-    # add RFIDs, access IDs for dams & sires of assigned HSW breeders
-    printout('Adding assigned HSW breeders to HSW ID map')
-    hsw_assigned <- hsw_assignments[hsw_assignments$assignment=='hsw_breeders',]
-    names(hsw_assigned)[which(names(hsw_assigned)=='dam')] <- 'dam_animalid'
-    names(hsw_assigned)[which(names(hsw_assigned)=='sire')] <- 'sire_animalid'
-
-    hsw_assigned$dam_rfid <- sapply(hsw_assigned$dam_animalid, function(x) {
-        prev_df$rfid[which(prev_df$animalid==x)]})
-    hsw_assigned$sire_rfid <- sapply(hsw_assigned$sire_animalid, function(x) {
-        prev_df$rfid[which(prev_df$animalid==x)]})
-    hsw_assigned$dam_accessid <- sapply(hsw_assigned$dam_animalid, function(x) {
-        prev_df$accessid[which(prev_df$animalid==x)]})
-    hsw_assigned$sire_accessid <- sapply(hsw_assigned$sire_animalid, function(x) {
-        prev_df$accessid[which(prev_df$animalid==x)]})
-
-    # add new breeders the the HSW id map
-    hsw_assigned <- hsw_assigned[,hsw_col_order]
-    hsw_map <- rbind(hsw_map, hsw_assigned)
-
-}
 
 # read in WFU shipping sheets
 wfu_ss_list <- list()
@@ -154,6 +122,49 @@ hsw_shipped <- hsw_shipped[, hsw_col_order]
 wfu_shipped <- wfu_shipped[!wfu_shipped$swid %in% hsw_map$animalid,]
 hsw_shipped <- hsw_shipped[!hsw_shipped$animalid %in% wfu_map$swid,]
 
+
+#### initialize ID maps for pedigree samples ####
+
+# read in current HSW assignments, if being used
+if (exists('hsw_assignments')) {
+    printout('Reading HSW assignments')
+    hsw_assignments <- read.csv(hsw_assignments)
+    
+    if (!exists('prev_colony_df')) {
+        stop('Please provide the previous HSW colony dataframe.')
+    }
+    printout('Reading the previous HSW colony dataframe')
+    prev_df <- read.csv(prev_colony_df)
+
+    # add RFIDs, access IDs for dams & sires of assigned HSW breeders
+    printout('Adding assigned HSW breeders to HSW ID map')
+    hsw_assigned <- hsw_assignments[hsw_assignments$assignment=='hsw_breeders',]
+    names(hsw_assigned)[which(names(hsw_assigned)=='dam')] <- 'dam_animalid'
+    names(hsw_assigned)[which(names(hsw_assigned)=='sire')] <- 'sire_animalid'
+
+    # extract RFIDs from wherever they are available
+    get_rfid <- function(id) {
+        if (id %in% prev_df$animalid) {
+            return(prev_df$rfid[which(prev_df$animalid==id)])
+        } else if (id %in% wfu_shipped$animalid){
+            return(wfu_shipped$rfid[which(wfu_shipped$animalid==id)])
+        } else if (id %in% hsw_map$animalid) {
+            return(hsw_map$rfid[which(hsw_map$animalid==id)])
+            return(NA)
+        }
+    }
+    hsw_assigned$dam_rfid <- sapply(hsw_assigned$dam_animalid, get_rfid)
+    hsw_assigned$sire_rfid <- sapply(hsw_assigned$sire_animalid, get_rfid)
+    hsw_assigned$dam_accessid <- sapply(hsw_assigned$dam_animalid, get_rfid)
+    hsw_assigned$sire_accessid <- sapply(hsw_assigned$sire_animalid, get_rfid)
+
+    # add new breeders the the HSW id map
+    hsw_assigned <- hsw_assigned[,hsw_col_order]
+
+
+    hsw_map <- rbind(hsw_map, hsw_assigned)
+
+}
 
 ####################
 #### WFU ID MAP ####
