@@ -24,6 +24,10 @@ breedhs_parser <- argument_parser(
         help = 'path to the most recent HSW colony dataframe of ALL rats (not only breeders)'),
     argument_def('--prev_colony_df', type = 'character', required = TRUE,
         help = 'path to the previous generations HSW colony dataframe of ALL rats (not only breeders)'),
+    argument_def('--hsw_id_map', type = 'character', required = TRUE,
+        help = 'the file path to the HSW ID map'),
+    argument_def('--wfu_id_map', type = 'character', required = TRUE,
+        help = 'the file path to the WFU ID map'),
     argument_def('--arg_parser', type = 'character', required = TRUE,
         help = 'path to the argument parser R script')
 
