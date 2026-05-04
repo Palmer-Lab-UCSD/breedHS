@@ -1859,13 +1859,13 @@ get_hsw_fam <- function(id) {
           fam <- substr(clean_id, start = nchar(clean_id)-3, stop = nchar(clean_id)-2)
       }
     
-    return(fam)
+    return(as.character(fam))
 }
 
 get_wfu_fam <- function(accessid) {
 
   fam <- sub('^(\\d+)(\\d{1})$', '\\1', accessid)
-  return(fam)
+  return(as.character(fam))
 }
 
 get_fam <- function(id, wfu_map, hsw_map) {
@@ -1917,7 +1917,7 @@ get_fam <- function(id, wfu_map, hsw_map) {
         }
     }
     
-    return(fam) 
+    return(as.character(fam))
 }
 
 concat_peds <- function(
@@ -2175,4 +2175,25 @@ trace_offspring <- function(
     results <- results[order(results$generation, results$animalid),]
     row.names(results) <- NULL
     return(results)
+}
+
+# general function to translate colony ID (either HSW animalid or WFU SWID) to access ID
+colony_id_to_accessid <- function(id, wfu_map, hsw_map) {
+    if (is.character(wfu_map) && file.exists(wfu_map)) {
+        wfu_map <- read.csv(wfu_map)
+        }
+    if (is.character(hsw_map) && file.exists(hsw_map)) {
+        hsw_map <- read.csv(hsw_map)
+        }
+
+    if (grepl('^G', id)) {
+        accessid <- animalid_to_accessid(id)
+    } else if (id %in% hsw_map$animalid) {
+        # use the HSW map for rats shipped from WFU
+        accessid <- hsw_map$accessid[which(hsw_map$animalid==id)]
+    } else {
+        # use the WFU map for in-house WFU rats
+        accessid <- wfu_map$accessid[which(wfu_map$swid==id)]
+    }
+    return(accessid)
 }
