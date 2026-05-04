@@ -83,13 +83,11 @@ conventions at WFU.** As above, they may provide a useful template for other inv
 
 
 ## Usage
-:construction: :construction: 
+
+Download program scripts from the `code` directory. To use program functions, set this directory as your working directory using `setwd(/path/to/code)` and source all functions using `source(breedhs.R)`.
 
 Code in the [`inst/`](code/inst/) directory can be used as-is (after updating necessary arguments and input files) to execute pairing at either HSW or WFU under different pairing scenarios. These include:
 - Regular HSW pairing during non-exchange generations
 - Regular WFU pairing during non-exchange generations
 - Pairing conducted at HSW when receiving/incorporating new rats from WFU
 - Pairing conducted at WFU when receiving/incorporating new rats from HSW
-
-Comprehensive examples for the above are currently in progress. Come back soon!  
-:construction: :construction: 
