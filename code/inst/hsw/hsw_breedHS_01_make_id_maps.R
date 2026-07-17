@@ -142,17 +142,24 @@ if (exists('hsw_assignments')) {
     names(hsw_assigned)[which(names(hsw_assigned)=='dam')] <- 'dam_animalid'
     names(hsw_assigned)[which(names(hsw_assigned)=='sire')] <- 'sire_animalid'
 
-    # extract RFIDs from wherever they are available
     get_rfid <- function(id) {
         if (id %in% prev_df$animalid) {
+            idx <- which(prev_df$animalid==id)
+            if (length(idx)>1) cat('ERROR: id', id, 'has', length(idx), 'entries in the previous colony dataframe \n')
             return(prev_df$rfid[which(prev_df$animalid==id)])
         } else if (id %in% wfu_shipped$animalid){
+            idx <- which(wfu_shipped$animalid==id)
+            if (length(idx)>1) cat('ERROR: id', id, 'has', length(idx), 'entries in the WFU shipping sheet \n')
             return(wfu_shipped$rfid[which(wfu_shipped$animalid==id)])
         } else if (id %in% hsw_map$animalid) {
+            idx <- which(hsw_map$animalid==id)
+            if (length(idx)>1) cat('ERROR: id', id, 'has', length(idx), 'entries in the HSW raw pedigree \n')
             return(hsw_map$rfid[which(hsw_map$animalid==id)])
+        } else {
             return(NA)
         }
     }
+
     hsw_assigned$dam_rfid <- sapply(hsw_assigned$dam_animalid, get_rfid)
     hsw_assigned$sire_rfid <- sapply(hsw_assigned$sire_animalid, get_rfid)
     hsw_assigned$dam_accessid <- sapply(hsw_assigned$dam_animalid, get_rfid)
