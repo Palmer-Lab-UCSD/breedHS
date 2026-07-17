@@ -86,15 +86,6 @@ wfu_raw_to_hsw(
     wfu_map = wfu_id_map,
     outdir = hsw_dir)
 
-# # convert the HSW raw pedigree into breedail format
-# printout('Converting the raw HSW pedigree')
-# hsw_current_ped <- format_hsw_raw_ped(
-#     ped = hsw_raw_ped,
-#     wfu_map = wfu_id_map, 
-#     hsw_map = hsw_id_map, 
-#     return_df = T, 
-#     outdir = hsw_dir)
-
 # convert the HSW raw pedigree into breedail format
 printout('Converting the raw HSW pedigree')
 for (gen in 95:hsw_last_gen) {
@@ -129,7 +120,7 @@ find.ped.errors(
     last_gen = wfu_last_gen,   # the current WFU generation
     data_dir = wfu_dir,   
     file_stem = wfu_stem, 
-    write_file = TRUE,
+    out_dir = file.path(wfu_dir, paste0('gen', wfu_last_gen)), # save as a snapshot of the WFU ped used for this gen's WFU pairing
     return_ids = FALSE,
     print_ids = TRUE)
 
@@ -140,8 +131,14 @@ find.ped.errors(
     last_gen = hsw_last_gen,   # the current HSW generation
     data_dir = hsw_dir,   
     file_stem = hsw_stem, 
-    write_file = TRUE,
+    out_dir = file.path(wfu_dir, paste0('gen', wfu_last_gen)), # save with WFU records as a snapshot of the HSW ped used for this gen's WFU pairing
     return_ids = FALSE,
     print_ids = TRUE)
+
+# save a copy of the complete HSW pedigree alongside the WFU pedigree
+hsw_ped <- list.files(file.path(hsw_dir, paste0('gen', hsw_last_gen)), 
+    pattern = glob2rx(paste0('hsw_ped_complete_*_', hsw_last_gen, '.csv')), 
+    full.names = TRUE)
+file.copy(from = hsw_ped, to = file.path(wfu_dir, paste0('gen', wfu_last_gen)))
 
 printout('Pedigree setup complete. Ready for pair selection')

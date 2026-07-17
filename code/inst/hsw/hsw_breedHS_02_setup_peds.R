@@ -66,7 +66,8 @@ printout('Converting HSW assignments to pedigree')
 hsw_current_raw_ped <- assignment_to_raw_ped(
     assignments = hsw_assignments, 
     hsw_map = hsw_id_map,
-    outdir = hsw_raw_dir)
+    outdir = hsw_raw_dir,
+    verbose = TRUE)
 
 # convert the HSW raw pedigree into breedail format
 printout('Converting the raw HSW pedigree')
@@ -81,7 +82,8 @@ for (gen in 95:hsw_last_gen) {
         wfu_map = wfu_id_map, 
         hsw_map = hsw_id_map, 
         return_df = F,  
-        outdir = hsw_dir)
+        outdir = hsw_dir,
+        verbose = FALSE) # set TRUE for troubleshooting
 
 }
 
@@ -108,7 +110,7 @@ find.ped.errors(
     last_gen = wfu_last_gen,   # the current WFU generation
     data_dir = wfu_dir,   
     file_stem = wfu_stem, 
-    write_file = TRUE,
+    out_dir = file.path(hsw_dir, paste0('gen', hsw_last_gen)), # save with HSW pairing records as a snapshot of the WFU ped used for this gen's HSW pairing
     return_ids = FALSE,
     print_ids = TRUE)
 
@@ -119,14 +121,14 @@ find.ped.errors(
     last_gen = hsw_last_gen,   # the current HSW generation
     data_dir = hsw_dir,   
     file_stem = hsw_stem, 
-    write_file = TRUE,
+    out_dir = file.path(hsw_dir, paste0('gen', hsw_last_gen)), # save as a snapshot of the HSW ped used for this gen's HSW pairing
     return_ids = FALSE,
     print_ids = TRUE)
 
-# save copies of complete pedigrees alongside the other colony's pedigree
-hsw_ped <- list.files(file.path(hsw_dir, paste0('gen', hsw_last_gen)),full.names=T)
-wfu_ped <- list.files(file.path(wfu_dir, paste0('gen', wfu_last_gen)),full.names=T)
-file.copy(from = hsw_ped, to = file.path(wfu_dir, paste0('gen', wfu_last_gen)))
+# save a copy of the complete WFU pedigree alongside the HSW pedigree
+wfu_ped <- list.files(file.path(wfu_dir, paste0('gen', wfu_last_gen)), 
+    pattern = glob2rx(paste0('wfu_ped_complete_*_', wfu_last_gen, '.csv')), 
+    full.names = TRUE)
 file.copy(from = wfu_ped, to = file.path(hsw_dir, paste0('gen', hsw_last_gen)))
 
 printout('Pedigree setup complete. Ready for pair selection')
