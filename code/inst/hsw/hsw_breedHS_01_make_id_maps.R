@@ -162,8 +162,8 @@ if (exists('hsw_assignments')) {
 
     hsw_assigned$dam_rfid <- sapply(hsw_assigned$dam_animalid, get_rfid)
     hsw_assigned$sire_rfid <- sapply(hsw_assigned$sire_animalid, get_rfid)
-    hsw_assigned$dam_accessid <- sapply(hsw_assigned$dam_animalid, get_rfid)
-    hsw_assigned$sire_accessid <- sapply(hsw_assigned$sire_animalid, get_rfid)
+    hsw_assigned$dam_accessid <- sapply(hsw_assigned$dam_animalid, animalid_to_accessid)
+    hsw_assigned$sire_accessid <- sapply(hsw_assigned$sire_animalid, animalid_to_accessid)
 
     # add new breeders the the HSW id map
     hsw_assigned <- hsw_assigned[,hsw_col_order]
