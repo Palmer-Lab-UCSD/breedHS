@@ -162,7 +162,7 @@ assignment_to_raw_ped <- function(
         missing_sires <- setdiff(ped$sire_animalid, hsw_map$animalid)
         cat(length(missing_dams), 'dam animalids missing from hsw_map \n')
         if (length(missing_dams)>0) cat('\t',missing_dams, '\n')
-        cat(length(missing_sires), 'dam animalids missing from hsw_map \n')
+        cat(length(missing_sires), 'sire animalids missing from hsw_map \n')
         if (length(missing_sires)>0) cat('\t',missing_sires, '\n')
     }
     
@@ -735,7 +735,13 @@ best_alt_pairs <- function(
         }
     }
     datestamp <- format(Sys.time(),'%Y%m%d')
-    if (verbose) cat('TROUBLESHOOTING best_alt_pairs() \n\n')
+    if (verbose) {
+        cat('TROUBLESHOOTING best_alt_pairs() \n\n')
+        print('pairs:')
+        print(str(pairs))
+        print('kinship:')
+        print(str(kinship))
+    }
 
     # get the breederpair combination for each possible pairing
     kinship$dam_fam <- sapply(kinship$dam_fam, function(x) {
