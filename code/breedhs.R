@@ -21,9 +21,9 @@ find.ped.errors <- function(first_gen,  # the desired starting generation
                             last_gen,   # the desired last generation
                             data_dir,   # the directory housing pedigree files
                             file_stem,  # the stem name shared by all pedigree files
-                            write_file=TRUE,
                             return_ids=TRUE,
-                            print_ids=TRUE)
+                            print_ids=TRUE,
+                            out_dir=NULL) # directory in which to save ped errors, if desired
 {
 
   # empty element to hold the eventual pedigree 
@@ -168,10 +168,10 @@ find.ped.errors <- function(first_gen,  # the desired starting generation
       cat('No errors found in the pedigree \n')
   } else {
       ## write missing parents to a file for investigation
-      if (write_file) {
+      if (!is.null(out_dir)) {
           
           datestamp <- format(Sys.time(),'%Y%m%d')
-          errs_dir <- file.path(data_dir, paste0('ped_errors_',datestamp))
+          errs_dir <- file.path(out_dir, paste0('ped_errors_',datestamp))
           dir.create(errs_dir, showWarnings=F)
 
           cat('See file(s) for details: \n')
@@ -361,6 +361,7 @@ select.breeders <- function(first_gen,              # first generation of the pe
   idx <- (N-no+1):N
   k.prev <- k[idx,idx]
   ped.prev <- ped[idx,]
+  ped.gen <- ped.prev # stable gen n-1 pedigree for family lookups
   
   # first mate pairing
   if (one_per_sibship){
@@ -380,6 +381,9 @@ select.breeders <- function(first_gen,              # first generation of the pe
   colnames(first.breeders) <- c('dam', 'sire', 'kinship')
   round.1 <- rep(1, nrow(first.breeders))
   round <- round.1
+
+  # identify pairings that can no longer be allowed (to avoid reciprocal pairings)
+  banned.pairs <- banned.from.pairs(first.breeders, ped.gen)
   
   ped.comb.out <- get.ped.comb(ped.prev, first.breeders)
   ped.comb <- ped.comb.out$ped.comb
@@ -393,9 +397,17 @@ select.breeders <- function(first_gen,              # first generation of the pe
   not.avail.idx <- ped.prev[,1] %in% c(ped.next[,2],ped.next[,3])
   not.avail.pos <- c(1:dim(ped.prev)[1])[not.avail.idx]
   
-  # second mate pairing (now using default max_pairs)
-  new.mates <- find.mates.given.pop(ped.comb, k.comb, pos.prev, pos.next, not.avail.pos, verbose = verbose)
-  
+  # second mate pairing (disallowing reciprocal crosses)
+#   new.mates <- find.mates.given.pop(ped.comb, k.comb, pos.prev, pos.next, not.avail.pos, verbose = verbose)
+    new.mates <- unique.mates.given.pop(
+        ped.comb, 
+        k.comb, 
+        pos.prev, 
+        pos.next,
+        not.avail.pos, 
+        banned.pairs = banned.pairs,
+        verbose = verbose)  
+        
   if (verbose) {
     cat('new.mates: \n')
     print(str(new.mates))
@@ -429,11 +441,20 @@ select.breeders <- function(first_gen,              # first generation of the pe
       pos.next <- dim(ped.prev)[1]+(1:dim(ped.next)[1])
       not.avail.idx <- ped.prev[,1] %in% c(ped.next[,2],ped.next[,3])
       not.avail.pos <- c(1:dim(ped.prev)[1])[not.avail.idx]
-      
-      # next round of mate pairing
-      new.mates <- find.mates.given.pop(ped.comb, k.comb, 
-                                      pos.prev, pos.next, not.avail.pos, verbose = verbose)
-      
+
+      # next round of mate pairing (disallowing reciprocal crosses)
+    #   new.mates <- find.mates.given.pop(ped.comb, k.comb, 
+    #                                   pos.prev, pos.next, not.avail.pos, verbose = verbose)
+      banned.pairs <- banned.from.pairs(all.breeders, ped.gen)
+      new.mates <- unique.mates.given.pop(
+        ped.comb, 
+        k.comb, 
+        pos.prev, 
+        pos.next,
+        not.avail.pos, 
+        banned.pairs = banned.pairs,
+        verbose = verbose)      
+        
       if (!is.null(new.mates) && nrow(new.mates) > 0) {
         all.mates[[i]] <- new.mates[,1:3]
         round.numbers[[i]] <- rep(i, nrow(new.mates))
@@ -624,9 +645,9 @@ exchange.breeders <- function(
     not.avail.pos2 <- c(1:dim(ped.prev2)[1])[not.avail.idx2]
     
     # second mate pairing 
-    round2.breeders1 <- find.mates.given.pop(ped.comb1, k.comb1, 
+    round2.breeders1 <- unique.mates.given.pop(ped.comb1, k.comb1, 
                                              pos.prev1, pos.next1, not.avail.pos1, verbose = verbose)
-    round2.breeders2 <- find.mates.given.pop(ped.comb2, k.comb2, 
+    round2.breeders2 <- unique.mates.given.pop(ped.comb2, k.comb2, 
                                              pos.prev2, pos.next2, not.avail.pos2, verbose = verbose)
     
     if (!is.null(round2.breeders1)){
@@ -676,9 +697,9 @@ exchange.breeders <- function(
     not.avail.pos2 <- c(1:dim(ped.prev2)[1])[not.avail.idx2]
     
     # third mate pairing
-    round3.breeders1 <- find.mates.given.pop(ped.comb1, k.comb1, 
+    round3.breeders1 <- unique.mates.given.pop(ped.comb1, k.comb1, 
                                              pos.prev1, pos.next1, not.avail.pos1, verbose = verbose)
-    round3.breeders2 <- find.mates.given.pop(ped.comb2, k.comb2, 
+    round3.breeders2 <- unique.mates.given.pop(ped.comb2, k.comb2, 
                                              pos.prev2, pos.next2, not.avail.pos2, verbose = verbose)
     
     if (!is.null(round3.breeders1)){
@@ -729,10 +750,10 @@ exchange.breeders <- function(
     not.avail.pos2 <- c(1:dim(ped.prev2)[1])[not.avail.idx2]
     
     # fourth mate pairing
-    round4.breeders1 <- find.mates.given.pop(ped.comb1, k.comb1, 
+    round4.breeders1 <- unique.mates.given.pop(ped.comb1, k.comb1, 
                                              pos.prev1, pos.next1, not.avail.pos1, verbose = verbose)
     
-    round4.breeders2 <- find.mates.given.pop(ped.comb2, k.comb2, 
+    round4.breeders2 <- unique.mates.given.pop(ped.comb2, k.comb2, 
                                              pos.prev2, pos.next2, not.avail.pos2, verbose = verbose)
     
     if (!is.null(round4.breeders1)){
