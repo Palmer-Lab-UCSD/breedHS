@@ -25,8 +25,13 @@ qos=
 
 # DO NOT EDIT: CPUs and memory (per cpu) desired for the current job
 cpu=1
-mem=4G 
+mem=8G 
 
+# DO NOT EDIT: automatically exclude GPU nodes
+exclude_nodes=$(sinfo -h -N -o "%N" | grep -- '-gpu-' | sort -u | paste -sd, | xargs scontrol show hostlist)
+
+# EDIT (as needed): sbatch-formatted list of CPU nodes to exclude 
+# exclude_nodes="${exclude_nodes},tscc-14-1" # manually add nodes as needed
 
 #####################################################################
 # DIRECTORIES
@@ -152,7 +157,7 @@ arg_parser_04=${code}/args/hsw_breedHS_04_finalize_pairs_arg_parser.R
 #### export variables ####
 
 # user/slurm settings
-export user allocation partition qos conda_env cpu mem
+export user allocation partition qos conda_env cpu mem exclude_nodes
 
 # directories
 export proj_dir code inputs  

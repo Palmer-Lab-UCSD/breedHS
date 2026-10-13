@@ -11,13 +11,15 @@ usage() {
     echo "Usage: $0 --step <step_name> [--skip_k]"
     echo ""
     echo "Arguments:"
-    echo " --args <filepath>      Required. File path to the breedHS arguments file"
-    echo "  --step <step_name>    Required. Analysis step to run: 'make_id_maps', 'fams_to_ship', 'setup_peds', 'propose_pairs', or 'finalize_pairs'"
-    echo "  --skip_k              Optional. Skip kinship calculations in propose_pairs step, read kinship from file instead"
+    echo " --args|-a <filepath>         Required. File path to the breedHS arguments file"
+    echo "  --step <step_name>          Required. Analysis step to run: 'make_id_maps', 'fams_to_ship', 'setup_peds', 'propose_pairs', or 'finalize_pairs'"
+    echo "  --skip_k                    Optional. Skip kinship calculations in propose_pairs step, read kinship from file instead (then proceed to pairing algorithm)"
+    echo "  --use_pairs <filepath>      Optional. Skip breeder pairing algorithm, read already-proposed pairings from file instead (then proceed to pair counts)"
     echo ""
     echo "Examples:"
     echo "  $0 --step setup_peds --args <filepath>"
     echo "  $0 --step propose_pairs --skip_k --args <filepath>"
+    echo "  $0 --step propose_pairs -a <filepath> --skip_k --use_pairs <filepath>"
     exit 1
 }
 
@@ -159,7 +161,7 @@ echo "Running breedHS step 3: proposing breeder pairs"
 		-p ${partition} -q ${qos} --account ${allocation} \
         -N 1 -c ${cpu} --mem-per-cpu ${mem} --time 1:00:00  \
 		--export breedhs_args="${breedhs_args}",skip_k="${skip_k}",proposed_pairs="${proposed_pairs}" \
-        --exclude "tscc-14-10" \
+        --exclude ${exclude_nodes} \
 		${code}/hsw_breedHS_03_propose_pairs.sh
 
 fi
