@@ -42,11 +42,16 @@ wfu_map <- wfu_map[, wfu_col_order]
 
 # read in the raw HSW pedigree
 printout('Reading the raw HSW pedigree')
-hsw_map <- read.csv(hsw_raw_ped)
+
 hsw_col_order <- c('generation', 'rfid', 'animalid', 'accessid', 'sex', 
                    'dam_rfid', 'sire_rfid', 'dam_animalid', 'sire_animalid', 'dam_accessid', 'sire_accessid')
-hsw_map <- hsw_map[, hsw_col_order]
 
+hsw_raw_peds <- list.files(hsw_raw_dir, pattern = hsw_raw_stem, full.names = T)
+hsw_raw_peds <- lapply(hsw_raw_peds, function(x){
+    df <- read.csv(x, colClasses=list('rfid'='character','dam_rfid'='character','sire_rfid'='character'))
+    df <- df[,hsw_col_order]
+})
+hsw_map <- do.call(rbind, hsw_raw_peds)
 
 # read in WFU shipping sheets
 wfu_ss_list <- list()
