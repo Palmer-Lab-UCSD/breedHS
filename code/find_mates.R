@@ -340,5 +340,137 @@ check.ped <- function(ped.current, ped.prev){
   return(missing.parents)
 }
 
-    
 
+### modifications to prevent reciprocal crosses (eg if B01_M x B02_F disallow B01_F x B02_M)
+UNKNOWN.FAM <- "0_0"
+
+make.fam.key <- function(p1, p2) paste(p1, p2, sep = "_")
+fam.pair.key <- function(f1, f2) paste(sort(c(f1, f2)), collapse = "||")
+
+## family key of one individual, looked up in a reference pedigree
+fam.of <- function(id, ped.ref) {
+  r <- which(ped.ref[, 1] == id)[1]
+  make.fam.key(ped.ref[r, 2], ped.ref[r, 3])
+}
+
+## family-pair keys represented by a table of pairs (cols 1,2 = the two IDs)
+banned.from.pairs <- function(pairs, ped.ref) {
+  if (is.null(pairs) || nrow(pairs) == 0) return(character(0))
+  keys <- apply(pairs, 1, function(row) {
+    f1 <- fam.of(as.numeric(row[1]), ped.ref)
+    f2 <- fam.of(as.numeric(row[2]), ped.ref)
+    if (f1 == UNKNOWN.FAM || f2 == UNKNOWN.FAM) return(NA_character_)
+    fam.pair.key(f1, f2)
+  })
+  unique(keys[!is.na(keys)])
+}
+
+## turn off any opposite-sex entry that mates the same family or an
+## already-used family pair
+apply.family.mask <- function(sex, fam, banned.pairs) {
+  n <- length(fam)
+  if (n < 2) return(sex)
+  for (a in 1:(n - 1)) {
+    fa <- fam[a]; if (fa == UNKNOWN.FAM) next
+    for (b in (a + 1):n) {
+      if (!sex[a, b]) next
+      fb <- fam[b]; if (fb == UNKNOWN.FAM) next
+      if (fa == fb || fam.pair.key(fa, fb) %in% banned.pairs) {
+        sex[a, b] <- FALSE; sex[b, a] <- FALSE
+      }
+    }
+  }
+  sex
+}
+
+# this function is derived from find.mates.given.pop() to prevent reciprocal crosses
+unique.mates.given.pop <- function(
+  ped, 
+  k, 
+  parent.pos, 
+  children.pos,
+  cant.breed.pos = c(), 
+  max.pairs = 50,
+  banned.pairs = character(0), 
+  verbose = FALSE) {
+
+  if (length(c(parent.pos, children.pos)) != dim(ped)[1]) {
+    cat("Warning: number of parents and children specified doesn't ",
+        "match the number of individuals in the pedigree file.",
+        "Was this intentional?\n")
+  }
+
+  ibc     <- diag(k)
+  ped.p   <- ped[parent.pos, ]
+  ped.tmp <- ped.p
+  ids     <- as.numeric(ped.tmp[, 1])
+  sex.vec <- as.numeric(ped.p[, 4])
+  N       <- length(ids)
+
+  fam <- make.fam.key(ped.tmp[, 2], ped.tmp[, 3])          # NEW: family key per parent
+
+  sex.1 <- kronecker(as.numeric(ped.tmp[, 4]), t(rep(1, N)))
+  sex.2 <- t(sex.1)
+  sex   <- sex.1 != sex.2
+
+  if (length(cant.breed.pos) > 0) {
+    can.breed <- rep(TRUE, N); can.breed[cant.breed.pos] <- FALSE
+    breed.1 <- kronecker(can.breed, t(rep(1, N))); breed.2 <- t(breed.1)
+    sex <- sex & (breed.1 & breed.2)
+  }
+
+  sex <- apply.family.mask(sex, fam, banned.pairs)         # NEW: forbid same-family & used pairs
+
+  k.mean <- rep(0, N)
+  for (i in 1:N) k.mean[i] <- sum(k[i, children.pos])
+  k.tmp   <- k[parent.pos, parent.pos]
+  k.funky <- k.tmp + kronecker(k.mean, t(rep(1, N))) +
+                     t(kronecker(k.mean, t(rep(1, N))))
+
+  output <- c(); count <- 0
+  while (sum(sex) > 0 & count < max.pairs) {
+    count <- count + 1
+    min.k   <- min(k.funky[sex])
+    min.idx <- k.funky == min.k & upper.tri(k.funky, diag = FALSE) & sex
+    m       <- kronecker(1:N, t(rep(1, N)))
+    id.1    <- m[min.idx]; id.2 <- t(m)[min.idx]
+    if (length(id.1) > 1) {
+      mean.ibc <- apply(rbind(ibc[id.1], ibc[id.2]), 2, mean)
+      ord <- order(mean.ibc); id.1 <- id.1[ord[1]]; id.2 <- id.2[ord[1]]
+    }
+
+    k.pair <- k.tmp[id.1, id.2]
+
+    if (fam[id.1] != UNKNOWN.FAM && fam[id.2] != UNKNOWN.FAM)   # NEW: ban this combination
+      banned.pairs <- union(banned.pairs, fam.pair.key(fam[id.1], fam[id.2]))
+
+    idx.keep <- rep(TRUE, N); idx.keep[c(id.1, id.2)] <- FALSE  # NEW: remove ONLY the two chosen
+
+    if (sum(idx.keep) > 1) {
+      keep.pos <- which(idx.keep)
+      for (a in 1:(length(keep.pos) - 1)) for (b in (a + 1):length(keep.pos)) {
+        id.i <- keep.pos[a]; id.j <- keep.pos[b]
+        k.funky[id.i, id.j] <- k.funky[id.i, id.j] +
+          .5 * (k.tmp[id.i, id.1] + k.tmp[id.i, id.2] +
+                k.tmp[id.j, id.1] + k.tmp[id.j, id.2])
+        k.funky[id.j, id.i] <- k.funky[id.i, id.j]
+      }
+    }
+
+    output <- rbind(output,
+      c(c(ids[id.1], ids[id.2])[sex.vec[c(id.1, id.2)] + 1],
+        round(k.pair, 4), round(min.k, 4)))
+
+    N       <- sum(idx.keep)
+    sex     <- sex[idx.keep, idx.keep, drop = FALSE]         # drop=FALSE guards the 1-left collapse
+    k       <- k[idx.keep, idx.keep, drop = FALSE]
+    ped.tmp <- ped.tmp[idx.keep, , drop = FALSE]
+    k.tmp   <- k.tmp[idx.keep, idx.keep, drop = FALSE]
+    k.funky <- k.funky[idx.keep, idx.keep, drop = FALSE]
+    ibc     <- ibc[idx.keep]; sex.vec <- sex.vec[idx.keep]
+    ids     <- ids[idx.keep]; fam <- fam[idx.keep]
+
+    sex <- apply.family.mask(sex, fam, banned.pairs)        # NEW: re-mask with the new ban
+  }
+  return(output)
+}
