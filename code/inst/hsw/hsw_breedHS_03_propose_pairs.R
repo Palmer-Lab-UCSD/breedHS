@@ -48,6 +48,9 @@ hsw_merged_dir <- file.path(peds_dir, 'merged', 'hsw', paste0('gen', hsw_last_ge
 dir.create(hsw_merged_dir, recursive=T, showWarnings=F)
 current_ped <- file.path(hsw_dir, paste0(hsw_stem, hsw_last_gen, '.csv'))
 
+if (!exists('proposed_pairs_file') || is.null(proposed_pairs_file) || is.na(proposed_pairs_file)) {
+    proposed_pairs_file <- NULL
+}
 
 # merge the WFU pedigree into the HSW pedigree
 printout('Merging pedigrees')
@@ -76,7 +79,7 @@ find.ped.errors(
     hsw_last_gen,
     data_dir = hsw_merged_dir,
     file_stem = hsw_merged_stem,
-    write_file = FALSE,
+    out_dir = NULL,
     return_ids = FALSE,
     print_ids = FALSE)
 
@@ -141,7 +144,7 @@ if (!is.null(proposed_pairs_file) && file.exists(proposed_pairs_file)) {
         data_dir = hsw_merged_dir,
         out_dir = breedhs_outdir,
         file_stem = hsw_merged_stem,
-        one_per_sibship=TRUE,
+        one_per_sibship = TRUE,
         verbose = FALSE) # set TRUE for troubleshooting
 
     # translate breederpair file
@@ -162,7 +165,7 @@ if (!is.null(proposed_pairs_file) && file.exists(proposed_pairs_file)) {
         to = rep('animalid', 2)) 
 
     # create the final breederpair file
-    printout('Producing final breederpair file')
+    printout('Formatting proposed breederpair file')
 
     breedpairs <- make_hsw_breeder_file(
         pairs = breedpairs_animalid, 
@@ -175,12 +178,13 @@ if (!is.null(proposed_pairs_file) && file.exists(proposed_pairs_file)) {
 
 
 # identify unpaired breeders
+printout('Counting breeder pairings')
 bp_counts <- count_breeder_pairs(
     assignments = hsw_assignments,
     breederpairs = breedpairs,
     outdir = counts_outdir)
 
-unpaired_ids <- bp_counts$assigned.but.not.paired
+unpaired_ids <- bp_counts$assigned_but_not_paired
 n_paired <- nrow(breedpairs)
 all_paired_ids <- c(breedpairs$dam_animalid, breedpairs$sire_animalid)
 
@@ -205,7 +209,7 @@ if (nrow(breedpairs) < n_pairs) {
     printout('Re-checking for unpaired breeders')
     bp_counts <- count_breeder_pairs(
         assignments = hsw_assignments,
-        breederpairs = all_pairs$pairs,
+        breederpairs = breedpairs,
         outdir = counts_outdir)
 
     all_paired_ids <- c(breedpairs$dam_animalid, breedpairs$sire_animalid)

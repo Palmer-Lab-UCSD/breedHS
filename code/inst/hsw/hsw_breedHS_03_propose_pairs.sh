@@ -15,7 +15,10 @@ echo "$(date +"%Y%m%d-%H:%M:%S")"
 echo "user: ${user}"
 echo ""
 
-
+proposed_pairs_arg=""
+if [[ -n "$proposed_pairs" && "$proposed_pairs" != "NULL" ]]; then
+    proposed_pairs_arg="--proposed_pairs_file ${proposed_pairs}"
+fi
 if [[ "$skip_k" == "false" ]]; then
 
     Rscript ${code}/hsw_breedHS_03_propose_pairs.R \
@@ -43,6 +46,7 @@ if [[ "$skip_k" == "false" ]]; then
         --avail_ids ${avail_ids} \
         --utils ${utils} \
         --proj_dir ${proj_dir} \
+        ${proposed_pairs_arg} \
         breedhs
 
 elif [[ "$skip_k" == "true" ]]; then
@@ -76,7 +80,7 @@ elif [[ "$skip_k" == "true" ]]; then
         --avail_ids ${avail_ids} \
         --utils ${utils} \
         --proj_dir ${proj_dir} \
-        --proposed_pairs_file ${proposed_pairs} \
+        ${proposed_pairs_arg} \
         --kinship_file ${kinship_file} \
         breedhs
 
